@@ -79,9 +79,10 @@ Money is integer centavos. Times are `timestamptz`. "Today" means Asia/Manila.
 Inspired by the structure of a local barbershop's booking site (rules, then date, barber, service, time, details), made calmer and clearer:
 - **Home:** one promise and one primary button, the real next free seat, services with prices and durations, barbers, how it works, opening hours.
 - **Booking in 4 steps:** service, barber (or any barber), time (days in one row, times grouped morning / afternoon / evening), check and confirm. A summary stays on the side on a laptop and in a bar at the bottom on a phone. Choices survive a trip to the sign-in page.
-- **Account:** My bookings (upcoming and past, move or cancel inside the cut-off), Profile (photo, name, mobile), Settings (theme, time format, favourite barber, promos, change password, sign out, delete my data).
+- **Account:** My bookings (upcoming and past, move or cancel inside the cut-off), Profile (photo the customer crops and zooms in a round frame before upload, name, mobile), Settings (theme, time format, favourite barber, promos, change password, sign out, delete my data).
 - **Privacy notice** page, linked from the consent line.
-- Development runs on sample data when no keys are set. That data is never in the production build (checked), and a production build without keys refuses to start.
+- Phone first: checked at 320, 375 and 390 wide for anything wider than the screen. Grids use `grid-cols-1` on phones so long text can't stretch them.
+- Development runs on sample data when no keys are set (or with `npm run dev:sample`). That data is never in the production build (checked), and a production build without keys refuses to start.
 
 ## 6. Booking safety
 

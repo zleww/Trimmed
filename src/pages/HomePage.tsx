@@ -16,19 +16,24 @@ export function HomePage() {
 
   return (
     <>
-      <Hero timeFormat={timeFormat} firstServiceId={services.data?.[0]?.id} notSetUp={services.data?.length === 0} />
+      <Hero
+        timeFormat={timeFormat}
+        firstServiceId={services.data?.[0]?.id}
+        notSetUp={services.data?.length === 0}
+        menuLoading={services.data === undefined && !services.error}
+      />
 
       {/* services */}
       <section id="services" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-24">
         <SectionHead eyebrow="Services" title="What we do" text="Prices are fixed and shown up front. You pay at the shop after your cut." />
-        <div className="mt-10 grid gap-3 md:grid-cols-2">
+        <div className="mt-10 grid grid-cols-1 gap-3 md:grid-cols-2">
           {services.loading && !services.data
             ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-24" />)
             : services.data?.map((service) => (
                 <Link
                   key={service.id}
                   to={`/book?service=${service.id}`}
-                  className="glass group flex items-center gap-4 rounded-3xl p-5 transition hover:border-ink-3"
+                  className="glass group flex min-w-0 items-center gap-4 rounded-3xl p-5 transition hover:border-ink-3"
                 >
                   <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-raised text-ink-2">
                     <Scissors size={20} />
@@ -62,7 +67,7 @@ export function HomePage() {
                 <Link
                   key={barber.id}
                   to={`/book?barber=${barber.id}`}
-                  className="glass group flex flex-col overflow-hidden rounded-3xl transition hover:border-ink-3"
+                  className="glass group flex min-w-0 flex-col overflow-hidden rounded-3xl transition hover:border-ink-3"
                 >
                   <div className="relative aspect-[4/5] bg-raised">
                     {barber.photo_url ? (
@@ -89,7 +94,7 @@ export function HomePage() {
       {/* how it works */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
         <SectionHead eyebrow="How it works" title="Booked in under a minute" />
-        <ol className="mt-10 grid gap-3 md:grid-cols-3">
+        <ol className="mt-10 grid grid-cols-1 gap-3 md:grid-cols-3">
           {[
             { Icon: Scissors, title: 'Pick a service', text: 'See the price and how long it takes before you choose.' },
             { Icon: Users, title: 'Choose a barber', text: 'Pick someone you know, or any barber for the earliest time.' },
@@ -113,7 +118,7 @@ export function HomePage() {
 
       {/* hours */}
       <section id="visit" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-24">
-        <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-start">
           <SectionHead
             eyebrow="Visit"
             title="Opening hours"
@@ -187,7 +192,17 @@ function SectionHead({ eyebrow, title, text }: { eyebrow: string; title: string;
 }
 
 /** Top of the page: the promise, one primary button, and the real next free time. */
-function Hero({ timeFormat, firstServiceId, notSetUp }: { timeFormat: '12h' | '24h'; firstServiceId?: string; notSetUp: boolean }) {
+function Hero({
+  timeFormat,
+  firstServiceId,
+  notSetUp,
+  menuLoading,
+}: {
+  timeFormat: '12h' | '24h'
+  firstServiceId?: string
+  notSetUp: boolean
+  menuLoading: boolean
+}) {
   // the earliest free time today or tomorrow, for any barber
   const next = useLoad(async () => {
     if (!firstServiceId) return null
@@ -199,7 +214,7 @@ function Hero({ timeFormat, firstServiceId, notSetUp }: { timeFormat: '12h' | '2
   }, [firstServiceId])
 
   return (
-    <section className="mx-auto grid max-w-6xl gap-10 px-4 pt-14 pb-10 sm:px-6 sm:pt-20 lg:grid-cols-[1.15fr_1fr] lg:items-center lg:gap-16 lg:pt-28 lg:pb-20">
+    <section className="mx-auto grid max-w-6xl grid-cols-1 gap-10 px-4 pt-14 pb-10 sm:px-6 sm:pt-20 lg:grid-cols-[1.15fr_1fr] lg:items-center lg:gap-16 lg:pt-28 lg:pb-20">
       <div className="rise">
         <Eyebrow>Online booking</Eyebrow>
         <h1 className="mt-4 text-[44px] leading-[1.02] font-semibold tracking-[-0.03em] sm:text-[60px] lg:text-[72px]">
@@ -232,7 +247,8 @@ function Hero({ timeFormat, firstServiceId, notSetUp }: { timeFormat: '12h' | '2
             </span>
             Next free seat
           </div>
-          {next.loading && !next.data ? (
+          {/* still waiting on the menu or the times: don't say "no seats" yet */}
+          {menuLoading || (next.loading && !next.data) ? (
             <Skeleton className="mt-4 h-14 w-48" />
           ) : next.data ? (
             <>

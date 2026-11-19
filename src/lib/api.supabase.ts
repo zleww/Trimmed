@@ -156,8 +156,9 @@ export function createSupabaseApi(db: SupabaseClient): Api {
       const { data } = await db.auth.getUser()
       if (!data.user) throw new Error('Sign in first.')
       // a new file name each time, so an old cached photo never shows
-      const path = `${data.user.id}/avatar-${Date.now()}.webp`
-      const upload = await db.storage.from(AVATARS).upload(path, file, { contentType: 'image/webp', upsert: false })
+      const type = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp'
+      const path = `${data.user.id}/avatar-${Date.now()}.${type === 'image/jpeg' ? 'jpg' : 'webp'}`
+      const upload = await db.storage.from(AVATARS).upload(path, file, { contentType: type, upsert: false })
       if (upload.error) throw new Error("Couldn't upload the photo. Use a JPG, PNG or WebP under 2 MB.")
       const before = check(await db.rpc('my_profile')) as Profile | null
       const after = check(await db.rpc('set_my_avatar', { p_path: path }))

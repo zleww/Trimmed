@@ -151,11 +151,12 @@ export function Segmented<T extends string>({
             aria-checked={selected}
             onClick={() => onChange(option.value)}
             className={
-              'flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full px-4 text-[14px] font-medium transition sm:flex-none ' +
+              'flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-2 text-[14px] font-medium transition sm:flex-none sm:px-4 ' +
               (selected ? 'bg-accent text-on-accent' : 'text-ink-2 hover:text-ink')
             }
           >
-            {option.icon}
+            {/* icons drop off on the narrowest phones so the words still fit */}
+            {option.icon && <span className="hidden min-[360px]:contents">{option.icon}</span>}
             {option.label}
           </button>
         )

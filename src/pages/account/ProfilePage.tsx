@@ -1,10 +1,12 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Camera, Trash } from '../../components/icons'
-import { Avatar, Button, Field, Glass, Notice } from '../../components/ui'
+import { PhotoCropper } from '../../components/PhotoCropper'
+import { Avatar, Button, Dialog, Field, Glass, Notice } from '../../components/ui'
 import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
+import type { Crop } from '../../lib/crop'
 import { errorMessage, prettyMobile } from '../../lib/format'
-import { squareWebp } from '../../lib/image'
+import { cropPhoto, loadPhoto, type LoadedPhoto } from '../../lib/image'
 
 export function ProfilePage() {
   const { session, profile, setProfile } = useAuth()
@@ -13,7 +15,14 @@ export function ProfilePage() {
   const [mobile, setMobile] = useState(profile ? prettyMobile(profile.mobile) : '')
   const [saving, setSaving] = useState(false)
   const [photoBusy, setPhotoBusy] = useState(false)
+  const [picked, setPicked] = useState<LoadedPhoto | null>(null) // open in the cropper
   const [message, setMessage] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null)
+
+  // free the preview's memory once the cropper closes
+  useEffect(() => {
+    if (!picked) return
+    return () => URL.revokeObjectURL(picked.url)
+  }, [picked])
 
   if (!profile) return null
 
@@ -33,15 +42,29 @@ export function ProfilePage() {
     }
   }
 
+  // step 1: read the picked photo and open the cropper
   async function pickPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     event.target.value = '' // so picking the same file again still fires
     if (!file) return
-    setPhotoBusy(true)
     setMessage(null)
     try {
-      setProfile(await api.uploadAvatar(await squareWebp(file)))
+      setPicked(await loadPhoto(file))
     } catch (reason) {
+      setMessage({ tone: 'bad', text: errorMessage(reason) })
+    }
+  }
+
+  // step 2: cut out what's in the circle and upload it
+  async function savePhoto(crop: Crop) {
+    if (!picked) return
+    setPhotoBusy(true)
+    try {
+      setProfile(await api.uploadAvatar(await cropPhoto(picked, crop)))
+      setPicked(null)
+      setMessage({ tone: 'good', text: 'Photo updated.' })
+    } catch (reason) {
+      setPicked(null)
       setMessage({ tone: 'bad', text: errorMessage(reason) })
     } finally {
       setPhotoBusy(false)
@@ -91,6 +114,11 @@ export function ProfilePage() {
           </div>
         </div>
       </Glass>
+
+      <Dialog open={picked !== null} title="Adjust your photo" onClose={() => setPicked(null)}>
+        {/* keyed by the photo, so a new pick starts centered again */}
+        {picked && <PhotoCropper key={picked.url} photo={picked} busy={photoBusy} onCancel={() => setPicked(null)} onDone={savePhoto} />}
+      </Dialog>
 
       <Glass className="p-6">
         <form onSubmit={save} className="space-y-5" noValidate>

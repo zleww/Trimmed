@@ -168,3 +168,17 @@ export const Spark = (p: IconProps) => (
     <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" />
   </Icon>
 )
+
+export const ZoomOut = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5M8 11h6" />
+  </Icon>
+)
+
+export const ZoomIn = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5M8 11h6M11 8v6" />
+  </Icon>
+)

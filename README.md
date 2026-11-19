@@ -16,6 +16,7 @@ React, TypeScript, Vite and Tailwind CSS on the front end. Supabase (Postgres, A
 ```
 npm install
 npm run dev     # with no .env.local, the screens run on sample data (development only)
+npm run dev:sample   # sample data even when .env.local exists (never touches the real database)
 npm test        # database tests
 npm run build   # type check and production build
 ```

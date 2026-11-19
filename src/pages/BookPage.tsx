@@ -140,8 +140,8 @@ export function BookPage() {
     step < 3 ? 'Continue' : !session ? 'Sign in to confirm' : draft.moveId ? 'Move my booking' : 'Confirm booking'
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pt-6 pb-40 sm:px-6 lg:pt-10 lg:pb-20">
-      <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:gap-12">
+    <div className="mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 lg:pt-10 lg:pb-20">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12">
         <div className="min-w-0">
           <StepHeader step={step} onBack={step > 0 ? () => setStep(step - 1) : undefined} onJump={setStep} canJumpTo={(i) => i < step} moving={Boolean(draft.moveId)} />
 
@@ -181,6 +181,7 @@ export function BookPage() {
                 daysAhead={rules.data?.booking_days_ahead ?? 14}
                 openDays={hours.data?.map((h) => h.weekday)}
                 date={draft.date ?? manilaToday()}
+                datePicked={draft.date !== undefined}
                 slot={draft.slot}
                 timeFormat={timeFormat}
                 onDate={(date) => update({ date })}
@@ -309,12 +310,14 @@ function Choice({
   disabled,
   children,
   className = '',
+  tickAt = 'top',
 }: {
   selected: boolean
   onClick: () => void
   disabled?: boolean
   children: React.ReactNode
   className?: string
+  tickAt?: 'top' | 'bottom' // bottom on service cards, so the price can sit in the top corner
 }) {
   return (
     <button
@@ -331,7 +334,7 @@ function Choice({
     >
       {children}
       {selected && (
-        <span className="absolute top-4 right-4 flex size-6 items-center justify-center rounded-full bg-accent text-on-accent">
+        <span className={`absolute right-4 flex size-6 ${tickAt === 'top' ? 'top-4' : 'bottom-4'} items-center justify-center rounded-full bg-accent text-on-accent`}>
           <Check size={14} strokeWidth={2.5} />
         </span>
       )}
@@ -354,7 +357,7 @@ function ServiceStep({
 }) {
   if (loading && !services) {
     return (
-      <div className="grid gap-3">
+      <div className="grid grid-cols-1 gap-3">
         {Array.from({ length: 4 }, (_, i) => (
           <Skeleton key={i} className="h-24" />
         ))}
@@ -362,19 +365,19 @@ function ServiceStep({
     )
   }
   return (
-    <div role="radiogroup" aria-label="Service" className="grid gap-3">
+    <div role="radiogroup" aria-label="Service" className="grid grid-cols-1 gap-3">
       {locked && <Notice>Moving a booking keeps the same service. To change it, cancel and book again.</Notice>}
       {services?.map((s) => (
-        <Choice key={s.id} selected={s.id === selected} disabled={locked && s.id !== selected} onClick={() => onPick(s.id)} className="p-5 pr-14">
+        <Choice key={s.id} selected={s.id === selected} disabled={locked && s.id !== selected} onClick={() => onPick(s.id)} className="p-5" tickAt="bottom">
           <span className="flex items-baseline justify-between gap-3">
-            <span className="text-[16px] font-medium">{s.name}</span>
-            <span className="num text-[16px] font-semibold">{peso(s.price_centavos)}</span>
+            <span className="min-w-0 text-[16px] font-medium">{s.name}</span>
+            <span className="num shrink-0 text-[16px] font-semibold">{peso(s.price_centavos)}</span>
           </span>
           <span className="mt-1 flex items-center gap-2 text-[14px] text-ink-2">
             <Clock size={14} />
             {duration(s.duration_minutes)}
           </span>
-          {s.description && <span className="mt-2 block text-[14px] text-ink-2">{s.description}</span>}
+          {s.description && <span className="mt-2 block pr-8 text-[14px] text-ink-2">{s.description}</span>}
         </Choice>
       ))}
     </div>
@@ -416,6 +419,7 @@ function TimeStep({
   daysAhead,
   openDays,
   date,
+  datePicked,
   slot,
   timeFormat,
   onDate,
@@ -426,6 +430,7 @@ function TimeStep({
   daysAhead: number
   openDays?: number[]
   date: string
+  datePicked: boolean
   slot?: string
   timeFormat: '12h' | '24h'
   onDate: (date: string) => void
@@ -433,6 +438,12 @@ function TimeStep({
 }) {
   const days = useMemo(() => Array.from({ length: daysAhead + 1 }, (_, i) => addDays(manilaToday(), i)), [daysAhead])
   const slots = useLoad(() => api.freeSlots(serviceId, barberId, date), [serviceId, barberId, date])
+
+  // in the evening today is usually full or closed: if the customer hasn't picked a day, start on tomorrow
+  const todayIsEmpty = !datePicked && date === manilaToday() && !slots.loading && slots.data?.length === 0
+  useEffect(() => {
+    if (todayIsEmpty) onDate(addDays(manilaToday(), 1))
+  }, [todayIsEmpty, onDate])
 
   // morning / afternoon / evening, by the Manila hour
   const groups = useMemo(() => {

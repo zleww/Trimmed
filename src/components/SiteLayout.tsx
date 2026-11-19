@@ -31,7 +31,8 @@ export function SiteLayout() {
   const onBooking = pathname.startsWith('/book')
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    // overflow-x-clip: a safety net so one wide element can never make the whole page slide sideways on a phone
+    <div className="flex min-h-dvh flex-col overflow-x-clip">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-full focus:bg-accent focus:px-4 focus:py-2 focus:text-on-accent">
         Skip to content
       </a>
@@ -78,7 +79,8 @@ export function SiteLayout() {
         <Outlet />
       </main>
 
-      <footer className="border-t border-glass-line">
+      {/* on the booking page a bar is fixed to the bottom of the phone screen: leave room so it never covers the footer links */}
+      <footer className={`border-t border-glass-line ${onBooking ? 'pb-24 lg:pb-0' : ''}`}>
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-[14px] text-ink-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>© {YEAR} Trimmed</p>
           <nav aria-label="Footer" className="-mx-3 flex">
