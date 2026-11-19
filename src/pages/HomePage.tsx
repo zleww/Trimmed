@@ -16,7 +16,7 @@ export function HomePage() {
 
   return (
     <>
-      <Hero timeFormat={timeFormat} firstServiceId={services.data?.[0]?.id} />
+      <Hero timeFormat={timeFormat} firstServiceId={services.data?.[0]?.id} notSetUp={services.data?.length === 0} />
 
       {/* services */}
       <section id="services" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-24">
@@ -48,6 +48,7 @@ export function HomePage() {
                 </Link>
               ))}
           {services.error && <p className="text-bad">{services.error}</p>}
+          {services.data?.length === 0 && <EmptyNote text="Services and prices will be posted soon." />}
         </div>
       </section>
 
@@ -81,6 +82,7 @@ export function HomePage() {
                   </div>
                 </Link>
               ))}
+          {barbers.data?.length === 0 && <EmptyNote text="Our barbers will be listed here soon." />}
         </div>
       </section>
 
@@ -126,7 +128,8 @@ export function HomePage() {
               {[1, 2, 3, 4, 5, 6, 0].map((weekday) => {
                 const day = hours.data?.find((h) => h.weekday === weekday)
                 const isToday = weekdayOf(manilaToday()) === weekday
-                if (!hours.data) return null
+                // nothing set yet: the note above says so, don't list 7 closed days
+                if (!hours.data || hours.data.length === 0) return null
                 return (
                   <li
                     key={weekday}
@@ -164,6 +167,15 @@ export function HomePage() {
   )
 }
 
+// shown when the shop hasn't added anything yet, instead of a blank gap
+function EmptyNote({ text }: { text: string }) {
+  return (
+    <Glass className="col-span-full p-6 text-center">
+      <p className="text-[15px] text-ink-2">{text}</p>
+    </Glass>
+  )
+}
+
 function SectionHead({ eyebrow, title, text }: { eyebrow: string; title: string; text?: string }) {
   return (
     <div className="max-w-xl">
@@ -175,7 +187,7 @@ function SectionHead({ eyebrow, title, text }: { eyebrow: string; title: string;
 }
 
 /** Top of the page: the promise, one primary button, and the real next free time. */
-function Hero({ timeFormat, firstServiceId }: { timeFormat: '12h' | '24h'; firstServiceId?: string }) {
+function Hero({ timeFormat, firstServiceId, notSetUp }: { timeFormat: '12h' | '24h'; firstServiceId?: string; notSetUp: boolean }) {
   // the earliest free time today or tomorrow, for any barber
   const next = useLoad(async () => {
     if (!firstServiceId) return null
@@ -230,7 +242,9 @@ function Hero({ timeFormat, firstServiceId }: { timeFormat: '12h' | '24h'; first
               <p className="mt-2 text-[16px] text-ink-2">{relativeDay(next.data.date)}, any barber</p>
             </>
           ) : (
-            <p className="mt-3 text-[18px] text-ink-2">No free seats today or tomorrow. Try a later day.</p>
+            <p className="mt-3 text-[18px] text-ink-2">
+              {notSetUp ? 'Online booking opens soon.' : 'No free seats today or tomorrow. Try a later day.'}
+            </p>
           )}
 
           <ul className="mt-8 space-y-3 border-t border-glass-line pt-6 text-[15px] text-ink-2">

@@ -59,6 +59,19 @@ describe('signed-out visitors', () => {
     expect(off).toEqual([])
   })
 
+  // found on the live project: the rule called is_staff(), which visitors may not run
+  test('can actually read active services and barbers, and nothing inactive', async () => {
+    await db.query("insert into public.services (name, duration_minutes, price_centavos, active) values ('Old service', 30, 10000, false)")
+    const services = await as(db, null, () => rows(db, 'select name from public.services order by name'))
+    expect(services.map((r) => r.name)).toEqual(['Haircut', 'Shave'])
+    const barbers = await as(db, null, () => rows(db, 'select display_name from public.barbers order by sort'))
+    expect(barbers.map((r) => r.display_name)).toEqual(['Barber A', 'Barber B'])
+    // signed-in customers too
+    expect((await as(db, alice, () => rows(db, 'select id from public.services'))).length).toBe(2)
+    // staff still see the inactive one
+    expect((await as(db, shop.owner, () => rows(db, 'select id from public.services'))).length).toBe(3)
+  })
+
   test('see free times but no names or numbers', async () => {
     const slots = await as(db, null, () =>
       rows(db, 'select * from public.get_free_slots($1, null, public.manila_today() + 1)', [shop.haircut]),

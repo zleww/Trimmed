@@ -66,6 +66,9 @@ Money is integer centavos. Times are `timestamptz`. "Today" means Asia/Manila.
 - Barber photo and short bio (public bucket `barber-photos`, owner uploads).
 - `public_shop_hours` for the booking site. `my_bookings` now returns one JSON list.
 
+**Migration 5, public menu fix** (`..._public_menu_fix.sql`)
+- Signed-out visitors get their own "active only" rule for services and barbers. The old rule called `is_staff()`, which visitors can't run, so their read failed. Found by checking the live project.
+
 **Not built yet**
 - Payroll (waiting on the owner's pay rules and a check of this year's SSS, PhilHealth, Pag-IBIG and tax rates).
 - Owner dashboard and report functions.
