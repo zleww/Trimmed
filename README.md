@@ -9,27 +9,35 @@ Both run on one Supabase backend. The database itself enforces who can see what,
 
 ## Stack
 
-Supabase (Postgres, Auth, row-level security), with React, TypeScript, Vite and Tailwind CSS coming for the screens. Tests use Vitest and PGlite, which runs the real migration files in an in-memory Postgres.
+React, TypeScript, Vite and Tailwind CSS on the front end. Supabase (Postgres, Auth, Storage, row-level security) on the back end. Tests use Vitest and PGlite, which runs the real migration files in an in-memory Postgres.
 
-## Run the tests
+## Run it
 
 ```
 npm install
-npm test
+npm run dev     # with no .env.local, the screens run on sample data (development only)
+npm test        # database tests
+npm run build   # type check and production build
 ```
+
+To connect a Supabase project, copy `.env.example` to `.env.local` and fill in the URL and publishable key. A production build without them refuses to start.
 
 ## Structure
 
 ```
+src/pages/             booking site: home, booking steps, sign in, account
+src/components/        layout and shared UI (glass cards, buttons, fields)
+src/lib/               data layer (Supabase or sample data), dates, money, theme
 supabase/migrations/   database schema, functions and access rules
 tests/db/              database tests (PGlite)
-docs/plan.md           plan, data model and open questions
+docs/plan.md           plan, data model, design and open questions
 ```
 
 ## Status
 
 - [x] Plan and data model
-- [x] Database: setup, bookings, sales (58 tests)
-- [ ] Payroll (waiting on the owner's pay rules)
-- [ ] Booking app screens
-- [ ] Shop app screens
+- [x] Database: setup, bookings, sales, profiles (66 tests)
+- [x] Booking site: home, booking steps, sign in, my bookings, profile, settings
+- [ ] Connect the live Supabase project
+- [ ] Shop app screens (desk, barbers, owner)
+- [ ] Payroll (on hold)

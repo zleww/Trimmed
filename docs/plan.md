@@ -18,6 +18,9 @@ Trimmed is the prototype name. The real shop's name, logo and customer data stay
 | 2026-11-19 | One Supabase project for both apps. Both apps need the same barbers, hours and bookings, so two backends would have to copy data back and forth. |
 | 2026-11-19 | Staff roles: `owner`, `desk`, `barber`. An owner or desk person can also be linked to a barber chair. |
 | 2026-11-19 | Stack: React + TypeScript + Vite + Tailwind CSS v4, Supabase, Vercel, Vitest + PGlite. |
+| 2026-11-19 | Customers sign in with email and password. They get a profile (photo, name, mobile) and app settings (theme, time format, favourite barber, promos). |
+| 2026-11-19 | Look: the "minimal green" palette (#051F20, #0B2B26, #163832, #235347, #8EB69B, #DAF1DE), frosted glass cards, dark by default with a light theme. |
+| 2026-11-19 | Payroll on hold until the owner's pay rules are known. |
 
 ## 3. Who can do what
 
@@ -58,12 +61,26 @@ Money is integer centavos. Times are `timestamptz`. "Today" means Asia/Manila.
 - `sales`, `sale_items`, `payments` (cash, GCash, Maya; e-wallet reference required and unique), `tips`, `stock_movements`, `expenses`, `day_closes`.
 - `record_sale` (prices from the database, payments must equal total plus tips, discounts owner only), `void_sale`, `stock_in`, `adjust_stock`, `add_expense`, `void_expense`, `close_day`, `is_day_closed`, `my_earnings`.
 
+**Migration 4, profiles** (`..._profiles.sql`)
+- Customer photo (private Storage bucket `avatars`, each customer can only touch their own folder) and app settings.
+- Barber photo and short bio (public bucket `barber-photos`, owner uploads).
+- `public_shop_hours` for the booking site. `my_bookings` now returns one JSON list.
+
 **Not built yet**
 - Payroll (waiting on the owner's pay rules and a check of this year's SSS, PhilHealth, Pag-IBIG and tax rates).
 - Owner dashboard and report functions.
 - Edge Functions: `staff-admin` (make staff logins, like Laced) and removing a customer's login after they delete their data.
 
-## 5. Booking safety
+## 5. Booking site (built)
+
+Inspired by the structure of a local barbershop's booking site (rules, then date, barber, service, time, details), made calmer and clearer:
+- **Home:** one promise and one primary button, the real next free seat, services with prices and durations, barbers, how it works, opening hours.
+- **Booking in 4 steps:** service, barber (or any barber), time (days in one row, times grouped morning / afternoon / evening), check and confirm. A summary stays on the side on a laptop and in a bar at the bottom on a phone. Choices survive a trip to the sign-in page.
+- **Account:** My bookings (upcoming and past, move or cancel inside the cut-off), Profile (photo, name, mobile), Settings (theme, time format, favourite barber, promos, change password, sign out, delete my data).
+- **Privacy notice** page, linked from the consent line.
+- Development runs on sample data when no keys are set. That data is never in the production build (checked), and a production build without keys refuses to start.
+
+## 6. Booking safety
 
 - Signed-out visitors can call `get_free_slots` and read active services and barbers. Nothing else. A test checks this list.
 - Booking needs a signed-in account with a profile (name, mobile, consent).
@@ -72,7 +89,7 @@ Money is integer centavos. Times are `timestamptz`. "Today" means Asia/Manila.
 - Customers see only their own bookings. Barbers never see phone numbers. Booking codes are random.
 - No SMS in v1. Sign-in by email (and maybe Google). Phone sign-in by SMS code costs money per message, so we'd get a cost estimate first.
 
-## 6. Lessons carried over from Laced
+## 7. Lessons carried over from Laced
 
 - Every migration revokes access from `public` and `anon`, then grants on purpose.
 - After each SQL paste into the dashboard, check the new tables and functions really exist on the live project.
@@ -82,13 +99,12 @@ Money is integer centavos. Times are `timestamptz`. "Today" means Asia/Manila.
 - No demo mode in production. A build with no keys refuses to start.
 - Wide tables become cards on phones from day one.
 
-## 7. Open questions
+## 8. Open questions
 
 **For Ezekiel**
 1. jnk-nini's email for commits.
 2. The repo `zleww/Trimmed` is public. Fine for a portfolio piece as long as no shop data goes in. Keep it public?
-3. How customers sign in: email and password, email link, Google, or a mix? (SMS costs money.)
-4. Inspiration images and a palette for the screens.
+3. Shop app look: same palette and glass style as the booking site (as in the dashboard reference)?
 
 **For the owner**
 1. Services, prices and how long each takes. Products sold.
@@ -104,7 +120,7 @@ Money is integer centavos. Times are `timestamptz`. "Today" means Asia/Manila.
 11. Sales after the day is closed are blocked. OK, or should the owner be able to reopen a day?
 12. Written agreement on customer data, who owns the code, and who pays hosting.
 
-## 8. Launch checklist (before real customers)
+## 9. Launch checklist (before real customers)
 
 - Privacy notice page and consent line, approved by the owner.
 - Delete-my-data works end to end, including removing the login.

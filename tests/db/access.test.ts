@@ -48,7 +48,7 @@ describe('signed-out visitors', () => {
       where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')
       order by 1`)
     expect(callable.map((r) => r.proname)).toEqual([
-      'booking_rules', 'get_free_slots', 'manila_at', 'manila_date', 'manila_today',
+      'booking_rules', 'get_free_slots', 'manila_at', 'manila_date', 'manila_today', 'public_shop_hours',
     ])
   })
 
@@ -82,7 +82,7 @@ describe('customers', () => {
     expect(seen.length).toBe(1)
     expect(seen.every((r) => r.customer_id === mine)).toBe(true)
 
-    const listed = await as(db, alice, () => rows(db, 'select public.my_bookings() as b'))
+    const listed = await as(db, alice, () => value(db, 'select public.my_bookings() as r'))
     expect(listed.length).toBe(1)
   })
 
