@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { applyTheme } from './theme'
-import type { Profile, Session } from './types'
+import type { Profile, Session, SignupDetails } from './types'
 
 type AuthValue = {
   /** undefined while checking the saved session, null when signed out */
@@ -11,7 +11,7 @@ type AuthValue = {
   profile: Profile | null | undefined
   setProfile: (profile: Profile) => void
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string) => Promise<{ needsConfirm: boolean }>
+  signUp: (email: string, password: string, details: SignupDetails) => Promise<{ needsConfirm: boolean }>
   signOut: () => Promise<void>
 }
 
@@ -28,7 +28,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(setSession)
       .catch(() => setSession(null))
     // sign in, sign out, or the email link opening the app
-    return api.onSessionChange(setSession)
+    const stopSession = api.onSessionChange(setSession)
+    // the "forgot password" link signs you in: send it to the page that asks for the new password
+    const stopRecovery = api.onPasswordRecovery(() => {
+      if (window.location.pathname !== '/new-password') window.location.replace('/new-password')
+    })
+    return () => {
+      stopSession()
+      stopRecovery()
+    }
   }, [])
 
   const userId = session?.userId
@@ -66,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       setProfile,
       signIn: async (email, password) => setSession(await api.signIn(email, password)),
-      signUp: (email, password) => api.signUp(email, password),
+      signUp: (email, password, details) => api.signUp(email, password, details),
       signOut: async () => {
         await api.signOut()
         setSession(null)

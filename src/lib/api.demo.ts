@@ -1,5 +1,5 @@
 import { manilaDateOf, manilaToday, manilaWallClock, addDays } from './dates'
-import type { Api, Barber, Booking, BookingRules, OpeningHours, Profile, Service, Session } from './types'
+import type { Api, Barber, BarberReviews, Booking, BookingRules, Inspo, OpeningHours, Profile, Review, Service, Session } from './types'
 
 // Sample data for working on the screens without a database.
 // Development only: api.ts never loads this file in a production build.
@@ -30,6 +30,26 @@ const rules: BookingRules = { slot_step_minutes: 15, booking_days_ahead: 14, min
 let session: Session | null = null
 let profile: Profile | null = null
 const bookings: Booking[] = []
+const takenUsernames = new Set(['admin', 'owner', 'staff', 'desk', 'barber', 'trimmed', 'sample.fan'])
+const inspo = new Map<string, Inspo & { bookingId: string }>()
+
+// made-up reviews so the barber page has something to show
+const reviews: (Review & { barberId: string })[] = [
+  { id: 'r1', barberId: 'b1', rating: 5, comment: 'Clean skin fade, took his time on the line-up.', created_at: '2026-11-02T06:00:00Z', edited: false, username: 'sample.fan', mine: false },
+  { id: 'r2', barberId: 'b1', rating: 4, comment: 'Good cut. Slightly late start.', created_at: '2026-10-21T09:30:00Z', edited: false, username: 'jm_sample', mine: false },
+  { id: 'r3', barberId: 'b2', rating: 5, comment: null, created_at: '2026-11-10T03:00:00Z', edited: false, username: 'cutclient', mine: false },
+]
+
+function reviewsFor(barberId: string): BarberReviews {
+  return {
+    reviews: reviews
+      .filter((r) => r.barberId === barberId)
+      .map(({ barberId: _barber, ...r }) => ({ ...r, mine: r.username !== null && r.username === profile?.username }))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    // in the sample data, a finished cut with every barber is pretended once you have a profile
+    can_review: Boolean(profile),
+  }
+}
 const listeners = new Set<(s: Session | null) => void>()
 
 const wait = (ms = 250) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -106,16 +126,31 @@ export const demoApi: Api = {
   },
   async signIn(email) {
     await wait()
-    setSession({ userId: '00000000-0000-4000-8000-000000000001', email })
+    setSession({ userId: '00000000-0000-4000-8000-000000000001', email, pending: null })
     return session!
   },
-  async signUp(email) {
+  async signUp(email, _password, details) {
     await wait()
-    setSession({ userId: '00000000-0000-4000-8000-000000000001', email })
+    setSession({ userId: '00000000-0000-4000-8000-000000000001', email, pending: details })
     return { needsConfirm: false }
+  },
+  async usernameAvailable(username) {
+    await wait(150)
+    const clean = username.trim().toLowerCase()
+    return (/^[a-z0-9._]{3,20}$/.test(clean) && !takenUsernames.has(clean)) || clean === profile?.username
   },
   async sendPasswordReset() {
     await wait()
+  },
+  onPasswordRecovery() {
+    return () => {}
+  },
+  async updatePassword(password) {
+    await wait()
+    if (password.length < 10) throw new Error('Pick a stronger password: at least 10 characters with letters and numbers.')
+  },
+  async clearPending() {
+    if (session) session = { ...session, pending: null }
   },
   async signOut() {
     setSession(null)
@@ -124,11 +159,16 @@ export const demoApi: Api = {
   async myProfile() {
     return session ? profile : null
   },
-  async saveProfile(fullName, mobile, consent) {
+  async saveProfile(username, fullName, mobile, consent) {
     await wait()
+    const handle = username.trim().toLowerCase()
+    if (!/^[a-z0-9._]{3,20}$/.test(handle)) throw new Error('Pick a username: 3 to 20 letters, numbers, dots or underscores')
+    if (takenUsernames.has(handle) && handle !== profile?.username) throw new Error('That username is taken. Try another.')
     const digits = mobile.replace(/\D/g, '').replace(/^63/, '0')
     if (!/^09\d{9}$/.test(digits)) throw new Error('Enter an 11-digit mobile number that starts with 09')
     if (!profile && !consent) throw new Error('Please agree to the privacy notice first')
+    if (profile?.username) takenUsernames.delete(profile.username)
+    takenUsernames.add(handle)
     profile = {
       id: 'c1',
       avatar_path: null,
@@ -139,9 +179,15 @@ export const demoApi: Api = {
       promo_opt_in: false,
       member_since: new Date().toISOString(),
       ...profile,
+      username: handle,
       full_name: fullName.trim(),
       mobile: digits,
     }
+    return profile
+  },
+  async setFavourite(barberId) {
+    await wait(150)
+    profile = { ...needProfile(), preferred_barber: barberId }
     return profile
   },
   async saveSettings(settings) {
@@ -163,6 +209,8 @@ export const demoApi: Api = {
     bookings.forEach((b) => {
       if (b.status === 'booked') b.status = 'cancelled'
     })
+    for (let i = reviews.length - 1; i >= 0; i--) if (reviews[i]!.username === profile?.username) reviews.splice(i, 1)
+    inspo.clear()
     profile = null
     setSession(null)
   },
@@ -207,10 +255,60 @@ export const demoApi: Api = {
     if (!old) throw new Error('Booking not found')
     old.status = 'cancelled'
     try {
-      return await demoApi.book(old.service_id, barberId, startsAt)
+      const moved = await demoApi.book(old.service_id, barberId, startsAt)
+      for (const item of inspo.values()) if (item.bookingId === id) item.bookingId = moved.id
+      return moved
     } catch (error) {
       old.status = 'booked'
       throw error
     }
+  },
+
+  async barberRatings() {
+    await wait(150)
+    const out: Record<string, { average: number | null; reviews: number }> = {}
+    for (const b of barbers) {
+      const list = reviews.filter((r) => r.barberId === b.id)
+      const total = list.reduce((sum, r) => sum + r.rating, 0)
+      out[b.id] = { average: list.length ? Math.round((total / list.length) * 10) / 10 : null, reviews: list.length }
+    }
+    return out
+  },
+  async barberReviews(barberId) {
+    await wait()
+    return reviewsFor(barberId)
+  },
+  async reviewBarber(barberId, rating, comment) {
+    await wait()
+    const me = needProfile()
+    const text = comment.trim() || null
+    const existing = reviews.find((r) => r.barberId === barberId && r.username === me.username)
+    if (existing) Object.assign(existing, { rating, comment: text, edited: true })
+    else {
+      reviews.push({ id: crypto.randomUUID(), barberId, rating, comment: text, created_at: new Date().toISOString(), edited: false, username: me.username, mine: true })
+    }
+    return reviewsFor(barberId)
+  },
+  async removeMyReview(barberId) {
+    await wait()
+    const index = reviews.findIndex((r) => r.barberId === barberId && r.username === profile?.username)
+    if (index >= 0) reviews.splice(index, 1)
+    return reviewsFor(barberId)
+  },
+
+  async listInspo(bookingId) {
+    await wait(150)
+    return [...inspo.values()].filter((i) => i.bookingId === bookingId).map(({ bookingId: _booking, ...item }) => item)
+  },
+  async addInspo(bookingId, file, kind) {
+    await wait(500)
+    if ([...inspo.values()].filter((i) => i.bookingId === bookingId).length >= 3) throw new Error('Up to 3 photos or videos per booking')
+    const item = { id: crypto.randomUUID(), kind, url: URL.createObjectURL(file), bookingId }
+    inspo.set(item.id, item)
+    return { id: item.id, kind, url: item.url }
+  },
+  async removeInspo(id) {
+    await wait(150)
+    inspo.delete(id)
   },
 }

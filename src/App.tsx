@@ -8,6 +8,8 @@ import { SettingsPage } from './pages/account/SettingsPage'
 import { AuthPage } from './pages/AuthPage'
 import { BookPage } from './pages/BookPage'
 import { HomePage } from './pages/HomePage'
+import { BarberPage } from './pages/BarberPage'
+import { NewPasswordPage } from './pages/NewPasswordPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { WelcomePage } from './pages/WelcomePage'
@@ -25,6 +27,8 @@ export default function App() {
             <Route path="signin" element={<AuthPage mode="signin" />} />
             <Route path="signup" element={<AuthPage mode="signup" />} />
             <Route path="welcome" element={<WelcomePage />} />
+            <Route path="new-password" element={<NewPasswordPage />} />
+            <Route path="barbers/:id" element={<BarberPage />} />
             <Route path="privacy" element={<PrivacyPage />} />
             {/* everything under /account needs a signed-in customer with a profile */}
             <Route path="account" element={<AccountLayout />}>

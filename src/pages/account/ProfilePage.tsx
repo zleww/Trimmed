@@ -11,6 +11,7 @@ import { cropPhoto, loadPhoto, type LoadedPhoto } from '../../lib/image'
 export function ProfilePage() {
   const { session, profile, setProfile } = useAuth()
   const fileInput = useRef<HTMLInputElement>(null)
+  const [username, setUsername] = useState(profile?.username ?? '')
   const [name, setName] = useState(profile?.full_name ?? '')
   const [mobile, setMobile] = useState(profile ? prettyMobile(profile.mobile) : '')
   const [saving, setSaving] = useState(false)
@@ -26,14 +27,15 @@ export function ProfilePage() {
 
   if (!profile) return null
 
-  const changed = name.trim() !== profile.full_name || mobile.replace(/\D/g, '') !== profile.mobile
+  const changed =
+    username.trim().toLowerCase() !== (profile.username ?? '') || name.trim() !== profile.full_name || mobile.replace(/\D/g, '') !== profile.mobile
 
   async function save(event: FormEvent) {
     event.preventDefault()
     setSaving(true)
     setMessage(null)
     try {
-      setProfile(await api.saveProfile(name, mobile, true))
+      setProfile(await api.saveProfile(username, name, mobile, true))
       setMessage({ tone: 'good', text: 'Profile saved.' })
     } catch (reason) {
       setMessage({ tone: 'bad', text: errorMessage(reason) })
@@ -122,7 +124,16 @@ export function ProfilePage() {
 
       <Glass className="p-6">
         <form onSubmit={save} className="space-y-5" noValidate>
-          <Field label="Full name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+          <Field
+            label="Username"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            hint="Shown on your reviews instead of your name."
+          />
+          <Field label="Display name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} hint="The name the shop will call you." />
           <Field
             label="Mobile number"
             type="tel"

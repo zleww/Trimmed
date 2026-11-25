@@ -21,6 +21,10 @@ Trimmed is the prototype name. The real shop's name, logo and customer data stay
 | 2026-11-19 | Customers sign in with email and password. They get a profile (photo, name, mobile) and app settings (theme, time format, favourite barber, promos). |
 | 2026-11-19 | Look: the "minimal green" palette (#051F20, #0B2B26, #163832, #235347, #8EB69B, #DAF1DE), frosted glass cards, dark by default with a light theme. |
 | 2026-11-19 | Payroll on hold until the owner's pay rules are known. |
+| 2026-11-25 | New look, 60-30-10: indigo black (60), bone (30), amber (10). Serif headings (Fraunces). New serif-T logo and favicon. |
+| 2026-11-25 | Sign-up asks for username, display name, email, mobile and password twice. Reviews show the username, never the real name. |
+| 2026-11-25 | Reviews: 1 to 5 stars and an optional comment, only after a finished cut with that barber. One per customer per barber; the owner can hide one with a reason. |
+| 2026-11-25 | Inspo: up to 3 photos or videos (30 s, 25 MB max) per booking, seen only by the customer, the desk, the owner and that booking's barber. |
 
 ## 3. Who can do what
 
@@ -29,6 +33,10 @@ Trimmed is the prototype name. The real shop's name, logo and customer data stay
 | See services, barbers, free times | yes | yes | yes | yes | yes |
 | Book, cancel, move own booking | | yes | | | |
 | Delete own data | | yes | | | |
+| Read reviews and star ratings | yes | yes | yes | yes | yes |
+| Review a barber (after a cut with them), favourite one | | yes | | | |
+| Hide a review | | | | | yes |
+| See a booking's inspo | | own | own chair | yes | yes |
 | Phone bookings and walk-ins | | | | yes | yes |
 | Check in, no-show, cancel | | | | yes | yes |
 | Start a service | | | own chair, or a waiting walk-in | yes | yes |
@@ -69,10 +77,18 @@ Money is integer centavos. Times are `timestamptz`. "Today" means Asia/Manila.
 **Migration 5, public menu fix** (`..._public_menu_fix.sql`)
 - Signed-out visitors get their own "active only" rule for services and barbers. The old rule called `is_staff()`, which visitors can't run, so their read failed. Found by checking the live project.
 
+**Migration 6, reviews and inspo** (`20261125000006_reviews_inspo.sql`)
+- `customers.username` (unique, lowercase, a few names reserved), `username_available` for the sign-up form, `save_my_profile` with a username.
+- `set_favourite_barber` for the star.
+- `barber_reviews` table (no direct access), `barber_ratings`, `barber_reviews`, `review_barber`, `remove_my_review`, `hide_review` (owner).
+- `booking_inspo` table and private `inspo` bucket (25 MB, images and mp4/mov/webm). `add_booking_inspo`, `remove_booking_inspo`, `booking_inspo`. Moving a booking keeps its inspo. Deleting your data removes your username, reviews and inspo.
+
 **Not built yet**
 - Payroll (waiting on the owner's pay rules and a check of this year's SSS, PhilHealth, Pag-IBIG and tax rates).
 - Owner dashboard and report functions.
 - Edge Functions: `staff-admin` (make staff logins, like Laced) and removing a customer's login after they delete their data.
+- The barber's screen that shows a booking's inspo (comes with the shop app; the database side is done).
+- Clearing old inspo files after the visit (storage is only 1 GB on the free plan).
 
 ## 5. Booking site (built)
 
@@ -80,6 +96,9 @@ Inspired by the structure of a local barbershop's booking site (rules, then date
 - **Home:** one promise and one primary button, the real next free seat, services with prices and durations, barbers, how it works, opening hours.
 - **Booking in 4 steps:** service, barber (or any barber), time (days in one row, times grouped morning / afternoon / evening), check and confirm. A summary stays on the side on a laptop and in a bar at the bottom on a phone. Choices survive a trip to the sign-in page.
 - **Account:** My bookings (upcoming and past, move or cancel inside the cut-off), Profile (photo the customer crops and zooms in a round frame before upload, name, mobile), Settings (theme, time format, favourite barber, promos, change password, sign out, delete my data).
+- **Barber page** (`/barbers/:id`): photo, bio, star rating, reviews, a star to make them your favourite, and "Book with...".
+- **Inspo**: add photos or short videos on the confirm step or later from My bookings.
+- **Forgot password**: the email link opens `/new-password` to type the new one (Settings > Change password opens the same page).
 - **Privacy notice** page, linked from the consent line.
 - Phone first: checked at 320, 375 and 390 wide for anything wider than the screen. Grids use `grid-cols-1` on phones so long text can't stretch them.
 - Development runs on sample data when no keys are set (or with `npm run dev:sample`). That data is never in the production build (checked), and a production build without keys refuses to start.
@@ -136,3 +155,4 @@ Inspired by the structure of a local barbershop's booking site (rules, then date
 - A trial run alongside the shop's current way of booking.
 - Hosting plan: Vercel's free Hobby plan is for non-commercial use only. Move to a paid plan (check the current price) before the shop uses it or anyone is paid for it.
 - Supabase Auth URL Configuration: Site URL is the real domain, and the redirect list has only our own addresses.
+- Inspo files: decide how long to keep them after the visit and clear old ones (privacy and the 1 GB storage limit). Mention them in the privacy notice.

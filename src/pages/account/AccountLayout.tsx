@@ -43,7 +43,7 @@ export function AccountLayout() {
             end={end}
             className={({ isActive }) =>
               'flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full text-[14px] font-medium transition ' +
-              (isActive ? 'bg-accent text-on-accent' : 'text-ink-2 hover:text-ink')
+              (isActive ? 'bg-ink text-bg' : 'text-ink-2 hover:text-ink')
             }
           >
             <Icon size={16} />

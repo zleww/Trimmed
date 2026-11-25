@@ -48,7 +48,8 @@ describe('signed-out visitors', () => {
       where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')
       order by 1`)
     expect(callable.map((r) => r.proname)).toEqual([
-      'booking_rules', 'get_free_slots', 'manila_at', 'manila_date', 'manila_today', 'public_shop_hours',
+      'barber_ratings', 'barber_reviews', 'booking_rules', 'get_free_slots', 'manila_at', 'manila_date', 'manila_today',
+      'public_shop_hours', 'username_available',
     ])
   })
 

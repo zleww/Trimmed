@@ -1,5 +1,5 @@
 import type { AuthError, PostgrestError, SupabaseClient } from '@supabase/supabase-js'
-import type { Api, Barber, Booking, Profile, Session } from './types'
+import type { Api, Barber, BarberReviews, Booking, Inspo, Profile, Rating, Session, SignupDetails } from './types'
 
 // Turns database and sign-in errors into plain sentences.
 // Our own database functions already raise plain messages (code P0001), so
@@ -9,6 +9,8 @@ function friendly(error: PostgrestError | AuthError | Error): Error {
   const code = 'code' in error ? error.code : undefined
   const message = error.message ?? ''
   if (code === 'P0001') return new Error(message)
+  // the unique rule on usernames, if two people grab the same one at once
+  if (code === '23505' && /username/i.test(message)) return new Error('That username is taken. Try another.')
   if (code === '42501') return new Error("You don't have access to that.")
   if (code === 'invalid_credentials' || /invalid login credentials/i.test(message)) {
     return new Error('Wrong email or password.')
@@ -16,6 +18,8 @@ function friendly(error: PostgrestError | AuthError | Error): Error {
   if (code === 'email_not_confirmed') return new Error('Confirm your email first. Check your inbox for the link.')
   if (code === 'user_already_exists') return new Error('There is already an account with that email. Sign in instead.')
   if (code === 'weak_password') return new Error('Pick a stronger password: at least 10 characters with letters and numbers.')
+  if (code === 'same_password') return new Error('Pick a password different from your old one.')
+  if (code === 'reauthentication_needed') return new Error('For safety, sign in again before changing your password.')
   if (code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit') {
     return new Error('Too many tries. Wait a few minutes and try again.')
   }
@@ -30,10 +34,32 @@ function check<T>(result: { data: T; error: PostgrestError | null }): T {
 
 const AVATARS = 'avatars'
 const BARBER_PHOTOS = 'barber-photos'
+const INSPO = 'inspo'
+
+type User = { id: string; email?: string; user_metadata?: Record<string, unknown> } | null | undefined
+
+// the sign-up form's details ride along on the login until the profile is made
+function pendingFrom(user: User): SignupDetails | null {
+  const raw = user?.user_metadata?.signup as Partial<SignupDetails> | undefined
+  if (!raw || typeof raw.username !== 'string' || typeof raw.full_name !== 'string' || typeof raw.mobile !== 'string') return null
+  return { username: raw.username, full_name: raw.full_name, mobile: raw.mobile }
+}
 
 export function createSupabaseApi(db: SupabaseClient): Api {
-  const toSession = (user: { id: string; email?: string } | null | undefined): Session | null =>
-    user ? { userId: user.id, email: user.email ?? '' } : null
+  const toSession = (user: User): Session | null =>
+    user ? { userId: user.id, email: user.email ?? '', pending: pendingFrom(user) } : null
+
+  async function myUserId(): Promise<string> {
+    const { data } = await db.auth.getUser()
+    if (!data.user) throw new Error('Sign in first.')
+    return data.user.id
+  }
+
+  // private files open through a link that works for an hour
+  async function signedUrl(bucket: string, path: string): Promise<string | null> {
+    const { data } = await db.storage.from(bucket).createSignedUrl(path, 3600)
+    return data?.signedUrl ?? null
+  }
 
   // The photo bucket is private, so the app gets a link that works for an hour.
   async function withAvatarUrl(raw: Omit<Profile, 'avatar_url'> | null): Promise<Profile | null> {
@@ -109,21 +135,42 @@ export function createSupabaseApi(db: SupabaseClient): Api {
       return session
     },
 
-    async signUp(email, password) {
+    async signUp(email, password, details) {
       const { data, error } = await db.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/welcome` },
+        options: { emailRedirectTo: `${window.location.origin}/welcome`, data: { signup: details } },
       })
       if (error) throw friendly(error)
       return { needsConfirm: !data.session }
     },
 
+    async usernameAvailable(username) {
+      return check(await db.rpc('username_available', { p_username: username })) as boolean
+    },
+
     async sendPasswordReset(email) {
+      // the link lands on the page that asks for the new password
       const { error } = await db.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/account/settings`,
+        redirectTo: `${window.location.origin}/new-password`,
       })
       if (error) throw friendly(error)
+    },
+
+    onPasswordRecovery(listener) {
+      const { data } = db.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') listener()
+      })
+      return () => data.subscription.unsubscribe()
+    },
+
+    async updatePassword(password) {
+      const { error } = await db.auth.updateUser({ password })
+      if (error) throw friendly(error)
+    },
+
+    async clearPending() {
+      await db.auth.updateUser({ data: { signup: null } })
     },
 
     async signOut() {
@@ -134,9 +181,15 @@ export function createSupabaseApi(db: SupabaseClient): Api {
       return withAvatarUrl(check(await db.rpc('my_profile')))
     },
 
-    async saveProfile(fullName, mobile, consent) {
-      check(await db.rpc('save_my_profile', { p_full_name: fullName, p_mobile: mobile, p_consent: consent }))
+    async saveProfile(username, fullName, mobile, consent) {
+      check(
+        await db.rpc('save_my_profile', { p_username: username, p_full_name: fullName, p_mobile: mobile, p_consent: consent }),
+      )
       return profileOrFail(check(await db.rpc('my_profile')))
+    },
+
+    async setFavourite(barberId) {
+      return profileOrFail(check(await db.rpc('set_favourite_barber', { p_barber: barberId })))
     },
 
     async saveSettings(settings) {
@@ -153,11 +206,10 @@ export function createSupabaseApi(db: SupabaseClient): Api {
     },
 
     async uploadAvatar(file) {
-      const { data } = await db.auth.getUser()
-      if (!data.user) throw new Error('Sign in first.')
+      const uid = await myUserId()
       // a new file name each time, so an old cached photo never shows
       const type = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp'
-      const path = `${data.user.id}/avatar-${Date.now()}.${type === 'image/jpeg' ? 'jpg' : 'webp'}`
+      const path = `${uid}/avatar-${Date.now()}.${type === 'image/jpeg' ? 'jpg' : 'webp'}`
       const upload = await db.storage.from(AVATARS).upload(path, file, { contentType: type, upsert: false })
       if (upload.error) throw new Error("Couldn't upload the photo. Use a JPG, PNG or WebP under 2 MB.")
       const before = check(await db.rpc('my_profile')) as Profile | null
@@ -176,6 +228,10 @@ export function createSupabaseApi(db: SupabaseClient): Api {
     async deleteMyData() {
       const before = check(await db.rpc('my_profile')) as Profile | null
       if (before?.avatar_path) await db.storage.from(AVATARS).remove([before.avatar_path])
+      // inspo files sit in the customer's own folder
+      const uid = await myUserId()
+      const { data: files } = await db.storage.from(INSPO).list(uid, { limit: 1000 })
+      if (files?.length) await db.storage.from(INSPO).remove(files.map((f) => `${uid}/${f.name}`))
       check(await db.rpc('delete_my_data'))
       await db.auth.signOut()
     },
@@ -198,6 +254,52 @@ export function createSupabaseApi(db: SupabaseClient): Api {
       return check(
         await db.rpc('reschedule_my_booking', { p_id: id, p_barber: barberId, p_starts_at: startsAt }),
       ) as Booking
+    },
+
+    async barberRatings() {
+      const rows = check(await db.rpc('barber_ratings')) as { barber_id: string; average: number | null; reviews: number }[]
+      const out: Record<string, Rating> = {}
+      for (const row of rows) out[row.barber_id] = { average: row.average === null ? null : Number(row.average), reviews: row.reviews }
+      return out
+    },
+
+    async barberReviews(barberId) {
+      return check(await db.rpc('barber_reviews', { p_barber: barberId })) as BarberReviews
+    },
+
+    async reviewBarber(barberId, rating, comment) {
+      return check(await db.rpc('review_barber', { p_barber: barberId, p_rating: rating, p_comment: comment })) as BarberReviews
+    },
+
+    async removeMyReview(barberId) {
+      return check(await db.rpc('remove_my_review', { p_barber: barberId })) as BarberReviews
+    },
+
+    async listInspo(bookingId) {
+      const rows = check(await db.rpc('booking_inspo', { p_appointment: bookingId })) as { id: string; path: string; kind: Inspo['kind'] }[]
+      return Promise.all(rows.map(async (row) => ({ id: row.id, kind: row.kind, url: await signedUrl(INSPO, row.path) })))
+    },
+
+    async addInspo(bookingId, file, kind) {
+      const uid = await myUserId()
+      const ext = ({ 'image/webp': 'webp', 'image/jpeg': 'jpg', 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm' } as Record<string, string>)[file.type]
+      if (!ext) throw new Error('Use a photo, or an MP4, MOV or WebM video.')
+      const path = `${uid}/${bookingId}-${crypto.randomUUID()}.${ext}`
+      const upload = await db.storage.from(INSPO).upload(path, file, { contentType: file.type, upsert: false })
+      if (upload.error) throw new Error("Couldn't upload that file. Keep videos short (under 30 seconds) and try again.")
+      try {
+        const row = check(await db.rpc('add_booking_inspo', { p_appointment: bookingId, p_path: path, p_kind: kind })) as { id: string }
+        return { id: row.id, kind, url: await signedUrl(INSPO, path) }
+      } catch (error) {
+        // the booking refused it (full, or not yours): don't leave the file behind
+        await db.storage.from(INSPO).remove([path])
+        throw error
+      }
+    },
+
+    async removeInspo(id) {
+      const path = check(await db.rpc('remove_booking_inspo', { p_id: id })) as string
+      await db.storage.from(INSPO).remove([path])
     },
   }
 }

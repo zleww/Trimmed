@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
+import { BarberCard } from '../components/Barbers'
 import { ArrowRight, Calendar, CheckCircle, ChevronRight, Clock, Scissors, Users } from '../components/icons'
-import { Avatar, ButtonLink, Eyebrow, Glass, Skeleton } from '../components/ui'
+import { ButtonLink, Eyebrow, Glass, Skeleton } from '../components/ui'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { addDays, formatClock, formatTime, manilaToday, relativeDay, WEEKDAYS, weekdayOf } from '../lib/dates'
@@ -13,6 +14,7 @@ export function HomePage() {
   const services = useLoad(() => api.listServices(), [])
   const barbers = useLoad(() => api.listBarbers(), [])
   const hours = useLoad(() => api.openingHours(), [])
+  const ratings = useLoad(() => api.barberRatings(), [])
 
   return (
     <>
@@ -59,34 +61,11 @@ export function HomePage() {
 
       {/* barbers */}
       <section id="barbers" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-24">
-        <SectionHead eyebrow="Barbers" title="Pick who cuts your hair" text="Book with a barber you like, or take the first one free." />
+        <SectionHead eyebrow="Barbers" title="Pick who cuts your hair" text="See their reviews, star your favourite, or take the first one free." />
         <div className="mt-10 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {barbers.loading && !barbers.data
             ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="aspect-[4/5]" />)
-            : barbers.data?.map((barber) => (
-                <Link
-                  key={barber.id}
-                  to={`/book?barber=${barber.id}`}
-                  className="glass group flex min-w-0 flex-col overflow-hidden rounded-3xl transition hover:border-ink-3"
-                >
-                  <div className="relative aspect-[4/5] bg-raised">
-                    {barber.photo_url ? (
-                      <img src={barber.photo_url} alt={barber.display_name} className="size-full object-cover" loading="lazy" />
-                    ) : (
-                      <div className="flex size-full items-center justify-center">
-                        <Avatar name={barber.display_name} size={72} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between gap-2 p-4">
-                    <div className="min-w-0">
-                      <p className="truncate text-[15px] font-medium">{barber.display_name}</p>
-                      {barber.bio && <p className="mt-0.5 truncate text-[13px] text-ink-2">{barber.bio}</p>}
-                    </div>
-                    <ArrowRight size={16} className="shrink-0 text-ink-3 transition group-hover:text-ink" />
-                  </div>
-                </Link>
-              ))}
+            : barbers.data?.map((barber) => <BarberCard key={barber.id} barber={barber} rating={ratings.data?.[barber.id]} />)}
           {barbers.data?.length === 0 && <EmptyNote text="Our barbers will be listed here soon." />}
         </div>
       </section>

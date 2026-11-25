@@ -1,9 +1,9 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link, type LinkProps } from 'react-router'
 import { initials } from '../lib/format'
 import type { BookingStatus } from '../lib/types'
-import { Alert, Ban, Calendar, CheckCircle, Clock, Info, Scissors, User } from './icons'
+import { Alert, Ban, Calendar, CheckCircle, Clock, Eye, EyeOff, Info, Scissors, User } from './icons'
 
 // ---------------------------------------------------------------------------
 // Buttons
@@ -60,7 +60,7 @@ export function Glass({ className = '', children }: { className?: string; childr
 }
 
 export function Eyebrow({ children }: { children: ReactNode }) {
-  return <p className="text-[13px] font-medium tracking-[0.14em] text-ink-2 uppercase">{children}</p>
+  return <p className="text-[12px] font-semibold tracking-[0.2em] text-accent-ink uppercase">{children}</p>
 }
 
 export function Skeleton({ className = '' }: { className?: string }) {
@@ -127,6 +127,32 @@ export function Field({ label, hint, error, trailing, className = '', ...rest }:
   )
 }
 
+/** A password box with an eye button that shows or hides what you typed. */
+export function PasswordField(props: Omit<FieldProps, 'type' | 'trailing'>) {
+  const [shown, setShown] = useState(false)
+  return (
+    <Field
+      {...props}
+      type={shown ? 'text' : 'password'}
+      // phones shouldn't "fix" a password while you type it
+      autoCapitalize="none"
+      autoCorrect="off"
+      spellCheck={false}
+      trailing={
+        <button
+          type="button"
+          onClick={() => setShown((v) => !v)}
+          aria-label={shown ? 'Hide password' : 'Show password'}
+          aria-pressed={shown}
+          className="flex size-11 items-center justify-center rounded-full text-ink-2 hover:text-ink"
+        >
+          {shown ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      }
+    />
+  )
+}
+
 /** A row of options where exactly one is picked, like Dark / Light / System. */
 export function Segmented<T extends string>({
   label,
@@ -152,7 +178,7 @@ export function Segmented<T extends string>({
             onClick={() => onChange(option.value)}
             className={
               'flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-2 text-[14px] font-medium transition sm:flex-none sm:px-4 ' +
-              (selected ? 'bg-accent text-on-accent' : 'text-ink-2 hover:text-ink')
+              (selected ? 'bg-ink text-bg' : 'text-ink-2 hover:text-ink')
             }
           >
             {/* icons drop off on the narrowest phones so the words still fit */}

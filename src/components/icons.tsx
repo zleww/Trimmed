@@ -182,3 +182,25 @@ export const ZoomIn = (p: IconProps) => (
     <path d="m20 20-3.5-3.5M8 11h6M11 8v6" />
   </Icon>
 )
+
+// filled when on (a favourite, or a given star in a rating)
+export const Star = ({ filled, ...p }: IconProps & { filled?: boolean }) => (
+  <Icon {...p} fill={filled ? 'currentColor' : 'none'}>
+    <path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z" />
+  </Icon>
+)
+
+export const ImagePlus = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M20 11v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7" />
+    <path d="m4 16 4.5-4.5a1.5 1.5 0 0 1 2.1 0L16 17" />
+    <circle cx="9" cy="8.5" r="1.5" />
+    <path d="M18 3v6M15 6h6" />
+  </Icon>
+)
+
+export const Play = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M8 5.5v13l10.5-6.5z" />
+  </Icon>
+)

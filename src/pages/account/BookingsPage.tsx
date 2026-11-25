@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { ArrowRight, Ban, Move } from '../../components/icons'
+import { BookingInspo } from '../../components/Inspo'
 import { Button, ButtonLink, Dialog, Glass, Notice, Skeleton, StatusBadge } from '../../components/ui'
 import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
@@ -78,6 +79,7 @@ export function BookingsPage() {
             {upcoming.map((b) => (
               <li key={b.id}>
                 <BookingCard booking={b} timeFormat={timeFormat}>
+                  <BookingInspo bookingId={b.id} editable={b.status === 'booked' && new Date(b.starts_at).getTime() > now} />
                   {changeable(b) ? (
                     <div className="mt-5 flex gap-2 border-t border-glass-line pt-4">
                       <Link

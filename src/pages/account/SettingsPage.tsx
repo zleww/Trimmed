@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { LogOut, Monitor, Moon, Sun, Trash } from '../../components/icons'
-import { Button, Dialog, Field, Glass, Notice, Segmented, Toggle } from '../../components/ui'
+import { Button, ButtonLink, Dialog, Field, Glass, Notice, Segmented, Toggle } from '../../components/ui'
 import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { errorMessage } from '../../lib/format'
@@ -14,7 +14,6 @@ export function SettingsPage() {
   const navigate = useNavigate()
   const barbers = useLoad(() => api.listBarbers(), [])
   const [message, setMessage] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null)
-  const [resetSent, setResetSent] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -38,16 +37,6 @@ export function SettingsPage() {
       setProfile(await api.saveSettings({ ...settings, ...patch }))
     } catch (reason) {
       setProfile(before)
-      setMessage({ tone: 'bad', text: errorMessage(reason) })
-    }
-  }
-
-  async function sendReset() {
-    if (!session) return
-    try {
-      await api.sendPasswordReset(session.email)
-      setResetSent(true)
-    } catch (reason) {
       setMessage({ tone: 'bad', text: errorMessage(reason) })
     }
   }
@@ -125,10 +114,10 @@ export function SettingsPage() {
       </Section>
 
       <Section title="Account">
-        <Row label="Password" description={resetSent ? `A link to set a new password was sent to ${session?.email}.` : 'We email you a link to set a new one.'}>
-          <Button variant="secondary" disabled={resetSent} onClick={sendReset}>
-            {resetSent ? 'Link sent' : 'Change password'}
-          </Button>
+        <Row label="Password" description={`For ${session?.email ?? 'your account'}.`}>
+          <ButtonLink variant="secondary" to="/new-password">
+            Change password
+          </ButtonLink>
         </Row>
         <Row label="Sign out" description="On this device.">
           <Button variant="secondary" onClick={() => signOut().then(() => navigate('/', { replace: true }))}>
@@ -141,7 +130,7 @@ export function SettingsPage() {
       <Glass className="border-bad/30 p-6">
         <h2 className="text-[16px] font-medium text-bad">Delete my data</h2>
         <p className="mt-1 text-[14px] leading-relaxed text-ink-2">
-          Cancels your upcoming bookings and removes your name, number and photo. Past payment records stay with the shop, without your name. This can't be undone.
+          Cancels your upcoming bookings and removes your name, username, number, photo, reviews and inspo files. Past payment records stay with the shop, without your name. This can't be undone.
         </p>
         <Button variant="danger" className="mt-4" onClick={() => setDeleting(true)}>
           <Trash size={18} />

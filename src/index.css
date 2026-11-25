@@ -1,59 +1,69 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter/wght.css';
+@import '@fontsource-variable/fraunces/opsz.css';
 
 /*
-  Design tokens. Colors from the "minimal green" palette:
-  #051F20  #0B2B26  #163832  #235347  #8EB69B  #DAF1DE
+  Design tokens. 60-30-10:
+    60% indigo black  (the room: background and cards)
+    30% bone          (the type, and anything you've selected)
+    10% amber         (one primary button per screen, stars, the current step)
+  Light theme swaps the first two: bone room, indigo-black type.
 
   Colors are set once here as CSS variables and handed to Tailwind below,
   so `bg-card` or `text-ink-2` follow the theme by themselves.
   Dark is the default; data-theme="light" on <html> switches.
 
-  Contrast on --bg (dark): ink 14.4:1, ink-2 7.6:1, ink-3 5.4:1.
-  ink-3 drops to 4.0:1 on --raised, so keep ink-3 off raised surfaces.
+  Contrast checked (WCAG AA is 4.5:1 for text):
+  dark  on --bg: ink 15.7, ink-2 9.5, ink-3 6.0, accent 8.8; on --raised ink-3 is 5.2
+  light on --bg: ink 16.0, ink-2 8.3, ink-3 5.5, accent-ink 5.2; on --raised accent-ink is 4.6
+  Buttons: indigo text on amber is 8.8 (dark) and 5.1 (light).
 */
 
 :root {
-  --bg: #051f20;
-  --card: #0b2b26;
-  --raised: #163832;
-  --line: #235347;
-  --glass: rgb(11 43 38 / 0.62);
-  --glass-line: rgb(142 182 155 / 0.16);
-  --sheen: rgb(218 241 222 / 0.08); /* the thin light along a glass edge */
-  --glow: rgb(142 182 155 / 0.14); /* soft light behind the page */
-  --ink: #daf1de;
-  --ink-2: #8eb69b;
-  --ink-3: #6f9a80;
-  --accent: #daf1de; /* primary button, selected chip */
-  --on-accent: #051f20;
-  --good: #8ee0ad;
-  --good-bg: rgb(142 224 173 / 0.12);
+  --bg: #0b0a14;
+  --card: #13111f;
+  --raised: #1c1930;
+  --line: #2a2640;
+  --glass: rgb(19 17 31 / 0.66);
+  --glass-line: rgb(236 229 214 / 0.1);
+  --sheen: rgb(236 229 214 / 0.07); /* the thin light along a glass edge */
+  --glow: rgb(96 82 180 / 0.18); /* soft indigo light behind the page */
+  --glow-warm: rgb(214 165 78 / 0.07); /* a faint amber one */
+  --ink: #ece5d6; /* bone */
+  --ink-2: #bbb3a3;
+  --ink-3: #958d7e;
+  --accent: #d6a54e; /* amber: primary button, stars, current step */
+  --accent-ink: #d6a54e; /* amber when used as text */
+  --on-accent: #0b0a14;
+  --good: #9fd8ae;
+  --good-bg: rgb(159 216 174 / 0.12);
   --warn: #e8c37c;
   --warn-bg: rgb(232 195 124 / 0.12);
-  --bad: #f2a097;
-  --bad-bg: rgb(242 160 151 / 0.12);
+  --bad: #f0a39a;
+  --bad-bg: rgb(240 163 154 / 0.12);
   color-scheme: dark;
 }
 
 [data-theme='light'] {
-  --bg: #eef5ef;
-  --card: #ffffff;
-  --raised: #e2efe4;
-  --line: #c6dccb;
-  --glass: rgb(255 255 255 / 0.7);
-  --glass-line: rgb(35 83 71 / 0.14);
-  --sheen: rgb(255 255 255 / 0.9);
-  --glow: rgb(142 182 155 / 0.25);
-  --ink: #051f20;
-  --ink-2: #235347;
-  --ink-3: #3e6b58;
-  --accent: #163832;
-  --on-accent: #daf1de;
+  --bg: #f3eee4;
+  --card: #fbf8f1;
+  --raised: #e9e2d4;
+  --line: #d8cfbf;
+  --glass: rgb(251 248 241 / 0.72);
+  --glass-line: rgb(20 18 31 / 0.1);
+  --sheen: rgb(255 255 255 / 0.85);
+  --glow: rgb(96 82 180 / 0.1);
+  --glow-warm: rgb(176 125 34 / 0.08);
+  --ink: #14121f; /* indigo black */
+  --ink-2: #474257;
+  --ink-3: #625c6e;
+  --accent: #b07d22;
+  --accent-ink: #885a0e;
+  --on-accent: #14121f;
   --good: #1d6b3f;
   --good-bg: rgb(29 107 63 / 0.1);
-  --warn: #8a5a08;
-  --warn-bg: rgb(138 90 8 / 0.1);
+  --warn: #7f5307;
+  --warn-bg: rgb(127 83 7 / 0.1);
   --bad: #a3271c;
   --bad-bg: rgb(163 39 28 / 0.08);
   color-scheme: light;
@@ -61,6 +71,8 @@
 
 @theme inline {
   --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* a classic serif for headings: the "premium" feel comes mostly from this */
+  --font-display: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
 
   --color-bg: var(--bg);
   --color-card: var(--card);
@@ -71,6 +83,7 @@
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
   --color-on-accent: var(--on-accent);
   --color-good: var(--good);
   --color-good-bg: var(--good-bg);
@@ -94,7 +107,7 @@ body {
   /* two soft lights, fixed behind everything */
   background:
     radial-gradient(60rem 40rem at 85% -10%, var(--glow), transparent 60%),
-    radial-gradient(40rem 30rem at -10% 30%, var(--glow), transparent 60%),
+    radial-gradient(40rem 30rem at -10% 35%, var(--glow-warm), transparent 60%),
     var(--bg);
   background-attachment: fixed;
 }
@@ -113,9 +126,17 @@ body {
   }
 }
 
+/* page and section titles use the serif */
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
+}
+
 /* clear keyboard focus everywhere, never on mouse click */
 :focus-visible {
-  outline: 2px solid var(--ink-2);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 

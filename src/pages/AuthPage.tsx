@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { Eye, EyeOff } from '../components/icons'
-import { Button, Field, Glass, Notice } from '../components/ui'
+import { Consent } from '../components/Consent'
+import { Button, Field, Glass, Notice, PasswordField } from '../components/ui'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { errorMessage } from '../lib/format'
+import { cleanMobile, cleanUsername, errorMessage, passwordProblem } from '../lib/format'
+import { useDebounced } from '../lib/useLoad'
 
 /** Only allow going back to a page on this site after sign-in. */
 export function safeNext(value: string | null): string {
@@ -12,17 +13,10 @@ export function safeNext(value: string | null): string {
 }
 
 export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
-  const { session, profile, signIn, signUp } = useAuth()
+  const { session, profile } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const next = safeNext(params.get('next'))
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [sent, setSent] = useState<'confirm' | 'reset' | null>(null)
 
   // signed in: go on, through the profile step if it isn't done
   useEffect(() => {
@@ -30,21 +24,44 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
     navigate(profile ? next : `/welcome?next=${encodeURIComponent(next)}`, { replace: true })
   }, [session, profile, next, navigate])
 
+  const other = mode === 'signin' ? 'signup' : 'signin'
+  const otherLink = `/${other}${params.get('next') ? `?next=${encodeURIComponent(next)}` : ''}`
+
+  return (
+    <div className="mx-auto max-w-md px-4 py-12 sm:py-20">
+      <div className="rise">
+        <h1 className="font-display text-[34px] leading-tight tracking-tight">{mode === 'signin' ? 'Welcome back' : 'Create your account'}</h1>
+        <p className="mt-2 text-[16px] text-ink-2">
+          {mode === 'signin' ? 'Sign in to book and manage your bookings.' : 'So you can book, and cancel or move a booking any time.'}
+        </p>
+      </div>
+
+      <Glass className="rise mt-8 p-6 sm:p-8 [animation-delay:80ms]">{mode === 'signin' ? <SignInForm /> : <SignUpForm />}</Glass>
+
+      <p className="mt-6 text-center text-[15px] text-ink-2">
+        {mode === 'signin' ? 'New here? ' : 'Already have an account? '}
+        <Link to={otherLink} className="font-medium text-ink underline-offset-4 hover:underline">
+          {mode === 'signin' ? 'Create an account' : 'Sign in'}
+        </Link>
+      </p>
+    </div>
+  )
+}
+
+function SignInForm() {
+  const { signIn } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [resetSent, setResetSent] = useState(false)
+
   async function submit(event: FormEvent) {
     event.preventDefault()
     setError(null)
-    if (mode === 'signup' && !/^(?=.*[A-Za-z])(?=.*\d).{10,}$/.test(password)) {
-      setError('Use at least 10 characters, with letters and numbers.')
-      return
-    }
     setBusy(true)
     try {
-      if (mode === 'signin') {
-        await signIn(email.trim(), password)
-      } else {
-        const result = await signUp(email.trim(), password)
-        if (result.needsConfirm) setSent('confirm')
-      }
+      await signIn(email.trim(), password)
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
@@ -61,7 +78,7 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
     setBusy(true)
     try {
       await api.sendPasswordReset(email.trim())
-      setSent('reset')
+      setResetSent(true)
     } catch (reason) {
       setError(errorMessage(reason))
     } finally {
@@ -69,74 +86,177 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
     }
   }
 
-  const other = mode === 'signin' ? 'signup' : 'signin'
-  const otherLink = `/${other}${params.get('next') ? `?next=${encodeURIComponent(next)}` : ''}`
+  if (resetSent) {
+    return (
+      <Notice tone="good">
+        If there's an account for {email}, a link to set a new password is on its way. Open it on this device; it takes you
+        straight to a page to type the new one.
+      </Notice>
+    )
+  }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12 sm:py-20">
-      <div className="rise">
-        <h1 className="text-[32px] font-semibold tracking-tight">{mode === 'signin' ? 'Welcome back' : 'Create your account'}</h1>
-        <p className="mt-2 text-[16px] text-ink-2">
-          {mode === 'signin' ? 'Sign in to book and manage your bookings.' : 'So you can book, and cancel or move a booking any time.'}
-        </p>
-      </div>
+    <form onSubmit={submit} className="space-y-5" noValidate>
+      {error && <Notice tone="bad">{error}</Notice>}
+      <Field label="Email" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+      <PasswordField label="Password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+      <Button type="submit" className="h-12 w-full text-[16px]" loading={busy}>
+        Sign in
+      </Button>
+      <button type="button" onClick={forgot} className="block min-h-11 w-full text-center text-[14px] text-ink-2 hover:text-ink">
+        Forgot password?
+      </button>
+    </form>
+  )
+}
 
-      <Glass className="rise mt-8 p-6 sm:p-8 [animation-delay:80ms]">
-        {sent ? (
-          <Notice tone="good">
-            {sent === 'confirm'
-              ? `We sent a link to ${email}. Open it on this phone to finish making your account.`
-              : `If there's an account for ${email}, a link to set a new password is on its way.`}
-          </Notice>
-        ) : (
-          <form onSubmit={submit} className="space-y-5" noValidate>
-            {error && <Notice tone="bad">{error}</Notice>}
-            <Field
-              label="Email"
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Field
-              label="Password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              hint={mode === 'signup' ? 'At least 10 characters, with letters and numbers.' : undefined}
-              trailing={
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="flex size-11 items-center justify-center rounded-full text-ink-2 hover:text-ink"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              }
-            />
-            <Button type="submit" className="h-12 w-full text-[16px]" loading={busy}>
-              {mode === 'signin' ? 'Sign in' : 'Create account'}
-            </Button>
-            {mode === 'signin' && (
-              <button type="button" onClick={forgot} className="block min-h-11 w-full text-center text-[14px] text-ink-2 hover:text-ink">
-                Forgot password?
-              </button>
-            )}
-          </form>
-        )}
-      </Glass>
+type Errors = Partial<Record<'username' | 'name' | 'email' | 'mobile' | 'password' | 'confirm' | 'consent', string>>
 
-      <p className="mt-6 text-center text-[15px] text-ink-2">
-        {mode === 'signin' ? 'New here? ' : 'Already have an account? '}
-        <Link to={otherLink} className="font-medium text-ink underline-offset-4 hover:underline">
-          {mode === 'signin' ? 'Create an account' : 'Sign in'}
-        </Link>
-      </p>
-    </div>
+function SignUpForm() {
+  const { signUp } = useAuth()
+  const [username, setUsername] = useState('')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [mobile, setMobile] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [consent, setConsent] = useState(false)
+  const [errors, setErrors] = useState<Errors>({})
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [sentTo, setSentTo] = useState<string | null>(null)
+
+  // check the username while they type, after a short pause
+  const typed = useDebounced(username, 400)
+  const [free, setFree] = useState<{ name: string; ok: boolean } | null>(null)
+  useEffect(() => {
+    const clean = cleanUsername(typed)
+    if (!clean) return
+    let current = true
+    api
+      .usernameAvailable(clean)
+      .then((ok) => current && setFree({ name: clean, ok }))
+      .catch(() => {})
+    return () => {
+      current = false
+    }
+  }, [typed])
+
+  const clean = cleanUsername(username)
+  const usernameHint =
+    username.trim() === ''
+      ? '3 to 20 letters, numbers, dots or underscores. Shown on reviews instead of your name.'
+      : !clean
+        ? 'Use 3 to 20 letters, numbers, dots or underscores. No spaces.'
+        : free?.name !== clean
+          ? 'Checking…'
+          : free.ok
+            ? `@${clean} is free.`
+            : undefined
+
+  function check(): Errors {
+    const found: Errors = {}
+    if (!clean) found.username = 'Use 3 to 20 letters, numbers, dots or underscores. No spaces.'
+    else if (free?.name === clean && !free.ok) found.username = `@${clean} is taken. Try another.`
+    if (name.trim().length < 2 || name.trim().length > 80) found.name = 'Enter the name the shop should call you.'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) found.email = 'Enter a valid email address.'
+    if (!cleanMobile(mobile)) found.mobile = 'Enter an 11-digit mobile number that starts with 09.'
+    const weak = passwordProblem(password)
+    if (weak) found.password = weak
+    if (!weak && confirm !== password) found.confirm = "The two passwords don't match."
+    if (!consent) found.consent = 'Please agree to the privacy notice to continue.'
+    return found
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setError(null)
+    const found = check()
+    setErrors(found)
+    if (Object.keys(found).length > 0) return
+    setBusy(true)
+    try {
+      // last check right before sending, in case someone took it a moment ago
+      if (!(await api.usernameAvailable(clean!))) {
+        setErrors({ username: `@${clean} is taken. Try another.` })
+        return
+      }
+      const result = await signUp(email.trim(), password, { username: clean!, full_name: name.trim(), mobile: cleanMobile(mobile)! })
+      if (result.needsConfirm) setSentTo(email.trim())
+    } catch (reason) {
+      setError(errorMessage(reason))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (sentTo) {
+    return (
+      <Notice tone="good">
+        We sent a link to {sentTo}. Open it on this phone to finish making your account. Your username, name and number are
+        saved for when you do.
+      </Notice>
+    )
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-5" noValidate>
+      {error && <Notice tone="bad">{error}</Notice>}
+      <Field
+        label="Username"
+        autoComplete="username"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        required
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        error={errors.username ?? (clean && free?.name === clean && !free.ok ? `@${clean} is taken. Try another.` : null)}
+        hint={usernameHint}
+      />
+      <Field
+        label="Display name"
+        autoComplete="name"
+        required
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        error={errors.name}
+        hint="The name the shop will call you."
+      />
+      <Field label="Email" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} />
+      <Field
+        label="Mobile number"
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel-national"
+        placeholder="0917 123 4567"
+        required
+        value={mobile}
+        onChange={(e) => setMobile(e.target.value)}
+        error={errors.mobile}
+        hint="The shop calls or texts only about your bookings."
+      />
+      <PasswordField
+        label="Create password"
+        autoComplete="new-password"
+        required
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        error={errors.password}
+        hint="At least 10 characters, with letters and numbers."
+      />
+      <PasswordField
+        label="Confirm password"
+        autoComplete="new-password"
+        required
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+        error={errors.confirm}
+      />
+      <Consent checked={consent} onChange={setConsent} error={errors.consent} />
+      <Button type="submit" className="h-12 w-full text-[16px]" loading={busy}>
+        Create account
+      </Button>
+    </form>
   )
 }

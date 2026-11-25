@@ -15,7 +15,7 @@ export function savedTheme(): Theme {
 export function applyTheme(theme: Theme = savedTheme()) {
   const light = theme === 'light' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches)
   document.documentElement.dataset.theme = light ? 'light' : 'dark'
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#eef5ef' : '#051f20')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#f3eee4' : '#0b0a14')
   try {
     localStorage.setItem(KEY, theme)
   } catch {

@@ -45,6 +45,9 @@ export type TimeFormat = '12h' | '24h'
 
 export type Profile = {
   id: string
+  /** public handle shown on reviews; older profiles may have none */
+  username: string | null
+  /** the name the shop calls you */
   full_name: string
   mobile: string
   avatar_path: string | null
@@ -58,7 +61,27 @@ export type Profile = {
 
 export type Settings = Pick<Profile, 'theme' | 'time_format' | 'preferred_barber' | 'promo_opt_in'>
 
-export type Session = { userId: string; email: string }
+/** What the sign-up form collected, kept on the login until the profile is made. */
+export type SignupDetails = { username: string; full_name: string; mobile: string }
+
+export type Session = { userId: string; email: string; pending: SignupDetails | null }
+
+export type Rating = { average: number | null; reviews: number }
+
+export type Review = {
+  id: string
+  rating: number
+  comment: string | null
+  created_at: string
+  edited: boolean
+  username: string | null
+  mine: boolean
+}
+
+export type BarberReviews = { reviews: Review[]; can_review: boolean }
+
+/** A photo or short video the customer added to a booking for the barber. */
+export type Inspo = { id: string; kind: 'image' | 'video'; url: string | null }
 
 /** Everything the booking app asks of the backend. */
 export type Api = {
@@ -75,13 +98,21 @@ export type Api = {
   onSessionChange(listener: (session: Session | null) => void): () => void
   signIn(email: string, password: string): Promise<Session>
   /** Returns needsConfirm = true when the account must click the email link first. */
-  signUp(email: string, password: string): Promise<{ needsConfirm: boolean }>
+  signUp(email: string, password: string, details: SignupDetails): Promise<{ needsConfirm: boolean }>
+  /** True when nobody else has this username (and it has the right shape). */
+  usernameAvailable(username: string): Promise<boolean>
   sendPasswordReset(email: string): Promise<void>
+  /** Calls back when someone opens the "set a new password" link from their email. */
+  onPasswordRecovery(listener: () => void): () => void
+  updatePassword(password: string): Promise<void>
+  /** Forget the sign-up details once the profile exists. */
+  clearPending(): Promise<void>
   signOut(): Promise<void>
 
   // profile
   myProfile(): Promise<Profile | null>
-  saveProfile(fullName: string, mobile: string, consent: boolean): Promise<Profile>
+  saveProfile(username: string, fullName: string, mobile: string, consent: boolean): Promise<Profile>
+  setFavourite(barberId: string | null): Promise<Profile>
   saveSettings(settings: Settings): Promise<Profile>
   uploadAvatar(file: Blob): Promise<Profile>
   removeAvatar(): Promise<Profile>
@@ -92,4 +123,15 @@ export type Api = {
   myBookings(): Promise<Booking[]>
   cancelBooking(id: string): Promise<Booking>
   rescheduleBooking(id: string, barberId: string | null, startsAt: string): Promise<Booking>
+
+  // reviews
+  barberRatings(): Promise<Record<string, Rating>>
+  barberReviews(barberId: string): Promise<BarberReviews>
+  reviewBarber(barberId: string, rating: number, comment: string): Promise<BarberReviews>
+  removeMyReview(barberId: string): Promise<BarberReviews>
+
+  // inspo on a booking
+  listInspo(bookingId: string): Promise<Inspo[]>
+  addInspo(bookingId: string, file: Blob, kind: Inspo['kind']): Promise<Inspo>
+  removeInspo(id: string): Promise<void>
 }

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { ArrowRight, Calendar, Check, CheckCircle, ChevronLeft, Clock, Info, Scissors, User, Users } from '../components/icons'
+import { ArrowRight, Calendar, Check, CheckCircle, ChevronLeft, Clock, ImagePlus, Info, Scissors, User, Users } from '../components/icons'
+import { InspoDraft } from '../components/Inspo'
 import { Avatar, Button, ButtonLink, Glass, Notice, Skeleton } from '../components/ui'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { addDays, formatDay, formatDayLong, formatTime, manilaDateOf, manilaToday, relativeDay, weekdayOf } from '../lib/dates'
 import { duration, errorMessage, peso } from '../lib/format'
 import type { Barber, Booking, Service } from '../lib/types'
+import type { ReadyInspo } from '../lib/inspo'
 import { useLoad } from '../lib/useLoad'
 
 // The booking is built step by step and kept in sessionStorage, so it
@@ -56,6 +58,9 @@ export function BookPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<Booking | null>(null)
+  // inspo photos/videos wait here until the booking exists (files can't be saved in the draft)
+  const [inspo, setInspo] = useState<ReadyInspo[]>([])
+  const [inspoFailed, setInspoFailed] = useState(0)
 
   useEffect(() => {
     saveDraft(draft)
@@ -113,6 +118,18 @@ export function BookPage() {
       const booking = draft.moveId
         ? await api.rescheduleBooking(draft.moveId, barberChoice, draft.slot)
         : await api.book(service.id, barberChoice, draft.slot)
+      // the booking is safe now; a failed upload only means "add it again from My bookings"
+      let failed = 0
+      for (const item of draft.moveId ? [] : inspo) {
+        try {
+          await api.addInspo(booking.id, item.blob, item.kind)
+        } catch {
+          failed++
+        }
+        URL.revokeObjectURL(item.preview)
+      }
+      setInspo([])
+      setInspoFailed(failed)
       setDone(booking)
       setDraft({})
       sessionStorage.removeItem(DRAFT_KEY)
@@ -134,7 +151,7 @@ export function BookPage() {
     else void confirm()
   }
 
-  if (done) return <Booked booking={done} timeFormat={timeFormat} moved={Boolean(draft.moveId || params.get('move'))} />
+  if (done) return <Booked booking={done} timeFormat={timeFormat} moved={Boolean(draft.moveId || params.get('move'))} inspoFailed={inspoFailed} />
 
   const primaryLabel =
     step < 3 ? 'Continue' : !session ? 'Sign in to confirm' : draft.moveId ? 'Move my booking' : 'Confirm booking'
@@ -196,6 +213,9 @@ export function BookPage() {
                 timeFormat={timeFormat}
                 cutoffMinutes={rules.data?.cancel_cutoff_minutes}
                 signedIn={Boolean(session)}
+                moving={Boolean(draft.moveId)}
+                inspo={inspo}
+                onInspo={setInspo}
               />
             )}
           </div>
@@ -480,7 +500,7 @@ function TimeStep({
               onClick={() => onDate(d)}
               className={
                 'flex min-h-16 w-[68px] shrink-0 snap-start flex-col items-center justify-center rounded-2xl border text-center transition disabled:opacity-40 ' +
-                (selected ? 'border-transparent bg-accent text-on-accent' : 'glass hover:border-ink-3')
+                (selected ? 'border-transparent bg-ink text-bg' : 'glass hover:border-ink-3')
               }
             >
               <span className={`text-[12px] ${selected ? '' : 'text-ink-2'}`}>{d === manilaToday() ? 'Today' : weekday}</span>
@@ -524,7 +544,7 @@ function TimeStep({
                         onClick={() => onSlot(s)}
                         className={
                           'num min-h-12 rounded-2xl border text-[15px] font-medium transition ' +
-                          (selected ? 'border-transparent bg-accent text-on-accent' : 'glass hover:border-ink-3')
+                          (selected ? 'border-transparent bg-ink text-bg' : 'glass hover:border-ink-3')
                         }
                       >
                         {formatTime(s, timeFormat)}
@@ -554,6 +574,9 @@ function ReviewStep({
   timeFormat,
   cutoffMinutes,
   signedIn,
+  moving,
+  inspo,
+  onInspo,
 }: {
   service: Service
   barber?: Barber
@@ -561,6 +584,9 @@ function ReviewStep({
   timeFormat: '12h' | '24h'
   cutoffMinutes?: number
   signedIn: boolean
+  moving: boolean
+  inspo: ReadyInspo[]
+  onInspo: (items: ReadyInspo[]) => void
 }) {
   return (
     <div className="space-y-4">
@@ -574,6 +600,19 @@ function ReviewStep({
           detail={formatDayLong(manilaDateOf(slot))}
         />
       </Glass>
+
+      {/* a photo or short video of the cut they want, so the barber can study it first */}
+      {signedIn && !moving && (
+        <Glass className="p-5">
+          <h2 className="flex items-center gap-2 text-[15px] font-medium">
+            <ImagePlus size={18} className="text-accent" />
+            Inspo for your barber <span className="font-normal text-ink-3">(optional)</span>
+          </h2>
+          <div className="mt-3">
+            <InspoDraft items={inspo} onChange={onInspo} />
+          </div>
+        </Glass>
+      )}
 
       <Glass className="p-5">
         <h2 className="flex items-center gap-2 text-[15px] font-medium">
@@ -591,7 +630,7 @@ function ReviewStep({
 
       {!signedIn && (
         <Notice>
-          You'll sign in or make an account next. It takes a minute, and your choices stay as they are.
+          You'll sign in or make an account next. It takes a minute, and your choices stay as they are. After that you can add inspo photos for your barber.
         </Notice>
       )}
     </div>
@@ -650,7 +689,7 @@ function Summary({
   )
 }
 
-function Booked({ booking, timeFormat, moved }: { booking: Booking; timeFormat: '12h' | '24h'; moved: boolean }) {
+function Booked({ booking, timeFormat, moved, inspoFailed }: { booking: Booking; timeFormat: '12h' | '24h'; moved: boolean; inspoFailed: number }) {
   const date = manilaDateOf(booking.starts_at)
   return (
     <div className="mx-auto max-w-lg px-4 py-14 sm:py-20">
@@ -661,6 +700,15 @@ function Booked({ booking, timeFormat, moved }: { booking: Booking; timeFormat: 
         <h1 className="mt-6 text-[30px] font-semibold tracking-tight">{moved ? 'Booking moved' : "You're booked"}</h1>
         <p className="mt-2 text-[16px] text-ink-2">See you {relativeDay(date) === 'Today' ? 'today' : `on ${formatDayLong(date)}`}.</p>
       </div>
+
+      {inspoFailed > 0 && (
+        <div className="mt-6">
+          <Notice tone="warn">
+            Your booking is saved, but {inspoFailed === 1 ? '1 inspo file' : `${inspoFailed} inspo files`} didn't upload. You can add
+            {inspoFailed === 1 ? ' it' : ' them'} again from My bookings.
+          </Notice>
+        </div>
+      )}
 
       <Glass className="rise mt-8 p-6 [animation-delay:100ms]">
         <p className="text-center text-[13px] tracking-[0.14em] text-ink-3 uppercase">Booking code</p>
