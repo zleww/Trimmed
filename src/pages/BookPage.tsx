@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { ArrowRight, Calendar, Check, CheckCircle, ChevronLeft, Clock, ImagePlus, Info, Scissors, User, Users } from '../components/icons'
+import { ArrowRight, Calendar, Check, ChevronLeft, Clock, ImagePlus, Info, MapPin, Scissors, User, Users } from '../components/icons'
 import { InspoDraft } from '../components/Inspo'
 import { Avatar, Button, ButtonLink, Glass, Notice, Skeleton } from '../components/ui'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { addDays, formatDay, formatDayLong, formatTime, manilaDateOf, manilaToday, relativeDay, weekdayOf } from '../lib/dates'
+import { addDays, formatClock, formatDay, formatDayLong, formatTime, manilaDateOf, manilaToday, relativeDay, weekdayOf } from '../lib/dates'
 import { duration, errorMessage, peso } from '../lib/format'
-import type { Barber, Booking, Service } from '../lib/types'
+import type { Barber, Booking, Branch, OpeningHours, Service } from '../lib/types'
 import type { ReadyInspo } from '../lib/inspo'
 import { useLoad } from '../lib/useLoad'
 
 // The booking is built step by step and kept in sessionStorage, so it
 // survives a trip to the sign-in page and back.
-type Draft = { serviceId?: string; barberId?: string; date?: string; slot?: string; moveId?: string }
+type Draft = { branchId?: string; serviceId?: string; barberId?: string; date?: string; slot?: string; moveId?: string }
 const DRAFT_KEY = 'trimmed-draft'
 const ANY = 'any'
 
@@ -32,12 +32,15 @@ function saveDraft(draft: Draft) {
   }
 }
 
-const STEPS = [
-  { title: 'Choose a service', short: 'Service', Icon: Scissors },
-  { title: 'Choose a barber', short: 'Barber', Icon: Users },
-  { title: 'Pick a time', short: 'Time', Icon: Calendar },
-  { title: 'Check and send', short: 'Send', Icon: CheckCircle },
-]
+type StepKey = 'branch' | 'service' | 'barber' | 'time' | 'review'
+
+const STEP_INFO: Record<StepKey, { title: string; short: string }> = {
+  branch: { title: 'Choose a location', short: 'Location' },
+  service: { title: 'Choose a service', short: 'Service' },
+  barber: { title: 'Choose a barber', short: 'Barber' },
+  time: { title: 'Pick a time', short: 'Time' },
+  review: { title: 'Check and send', short: 'Send' },
+}
 
 export function BookPage() {
   const { session, profile } = useAuth()
@@ -45,22 +48,37 @@ export function BookPage() {
   const [params] = useSearchParams()
   const timeFormat = profile?.time_format ?? '12h'
 
-  // start from the link (?service=, ?barber=, ?move=) or a saved draft
+  // start from the link (?branch=, ?service=, ?barber=, ?move=) or a saved draft
   const [draft, setDraft] = useState<Draft>(() => {
     const fromLink: Draft = {
+      branchId: params.get('branch') ?? undefined,
       serviceId: params.get('service') ?? undefined,
       barberId: params.get('barber') ?? undefined,
       moveId: params.get('move') ?? undefined,
     }
-    return fromLink.serviceId || fromLink.barberId || fromLink.moveId ? fromLink : loadDraft()
+    return fromLink.branchId || fromLink.serviceId || fromLink.barberId || fromLink.moveId ? fromLink : loadDraft()
   })
-  const [step, setStep] = useState(() => (draft.slot ? 3 : draft.serviceId && draft.barberId ? 2 : draft.serviceId ? 1 : 0))
+  const [stepKey, setStepKey] = useState<StepKey>(() =>
+    draft.slot ? 'review' : draft.serviceId && draft.barberId ? 'time' : draft.serviceId ? 'barber' : draft.branchId ? 'service' : 'branch',
+  )
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<Booking | null>(null)
   // inspo photos/videos wait here until the booking exists (files can't be saved in the draft)
   const [inspo, setInspo] = useState<ReadyInspo[]>([])
   const [inspoFailed, setInspoFailed] = useState(0)
+
+  const branches = useLoad(() => api.listBranches(), [])
+  const services = useLoad(() => api.listServices(), [])
+  const barbers = useLoad(() => api.listBarbers(), [])
+  const rules = useLoad(() => api.bookingRules(), [])
+  const hours = useLoad(() => api.openingHours(), [])
+
+  // one branch: no need to ask. Moving a booking: it stays at its branch.
+  const askBranch = (branches.data?.length ?? 0) > 1 && !draft.moveId
+  const flow: StepKey[] = askBranch ? ['branch', 'service', 'barber', 'time', 'review'] : ['service', 'barber', 'time', 'review']
+  const shownKey: StepKey = flow.includes(stepKey) ? stepKey : 'service'
+  const step = flow.indexOf(shownKey)
 
   useEffect(() => {
     saveDraft(draft)
@@ -69,40 +87,65 @@ export function BookPage() {
   // each step starts at the top of the page (braces: newer browsers return a Promise from scrollTo)
   useEffect(() => {
     window.scrollTo({ top: 0 })
-  }, [step])
+  }, [shownKey])
 
-  // a signed-in customer's favourite barber is picked for them, unless the link chose one
+  // work out the branch when it isn't chosen: the only one there is, or the chosen barber's
   useEffect(() => {
-    if (profile?.preferred_barber && !draft.barberId && !draft.moveId) {
-      setDraft((d) => ({ ...d, barberId: profile.preferred_barber! }))
-    }
+    if (draft.branchId || !branches.data || !barbers.data) return
+    const fromBarber = barbers.data.find((b) => b.id === draft.barberId)?.branch_id
+    const only = branches.data.length === 1 ? branches.data[0]!.id : undefined
+    const found = fromBarber ?? only
+    // oxlint-disable-next-line react/set-state-in-effect -- filling in what the links and data already say
+    if (found) setDraft((d) => ({ ...d, branchId: found }))
+  }, [draft.branchId, draft.barberId, branches.data, barbers.data])
+
+  // a signed-in customer's favourite barber is picked for them (and their branch), unless the link chose otherwise
+  useEffect(() => {
+    const favourite = barbers.data?.find((b) => b.id === profile?.preferred_barber)
+    if (!favourite || draft.barberId || draft.moveId) return
+    if (draft.branchId && draft.branchId !== favourite.branch_id) return
+    // oxlint-disable-next-line react/set-state-in-effect -- a one-time head start from the profile
+    setDraft((d) => ({ ...d, barberId: favourite.id, branchId: favourite.branch_id }))
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.preferred_barber])
+  }, [profile?.preferred_barber, barbers.data])
 
-  const services = useLoad(() => api.listServices(), [])
-  const barbers = useLoad(() => api.listBarbers(), [])
-  const rules = useLoad(() => api.bookingRules(), [])
-  const hours = useLoad(() => api.openingHours(), [])
-
+  const branch = branches.data?.find((b) => b.id === draft.branchId)
   const service = services.data?.find((s) => s.id === draft.serviceId)
   const barber = barbers.data?.find((b) => b.id === draft.barberId)
   const barberChoice = draft.barberId === ANY ? null : (draft.barberId ?? null)
+  const branchBarbers = barbers.data?.filter((b) => b.branch_id === draft.branchId)
+  const branchHours = hours.data?.filter((h) => h.branch_id === draft.branchId)
 
-  const canContinue = [Boolean(service), Boolean(draft.barberId), Boolean(draft.slot), true][step]
+  const ready: Record<StepKey, boolean> = {
+    branch: Boolean(branch),
+    service: Boolean(service),
+    barber: Boolean(draft.barberId),
+    time: Boolean(draft.slot),
+    review: true,
+  }
+  const canContinue = ready[shownKey]
 
   function update(change: Partial<Draft>) {
     setError(null)
     setDraft((d) => {
       const next = { ...d, ...change }
-      // a different service or barber changes which times are free
-      if ('serviceId' in change || 'barberId' in change) next.slot = undefined
-      if ('date' in change) next.slot = undefined
+      // another branch has other barbers
+      if ('branchId' in change && change.branchId !== d.branchId) next.barberId = undefined
+      // a different branch, service or barber changes which times are free
+      if ('branchId' in change || 'serviceId' in change || 'barberId' in change || 'date' in change) next.slot = undefined
       return next
     })
   }
 
+  // after picking on one step, go to the next step that still needs an answer
+  function goOn(from: StepKey, answered: Partial<Record<StepKey, boolean>> = {}) {
+    const after = flow.slice(flow.indexOf(from) + 1)
+    const has = { ...ready, ...answered, time: false }
+    setStepKey(after.find((k) => !has[k]) ?? 'review')
+  }
+
   async function confirm() {
-    if (!service || !draft.slot) return
+    if (!service || !draft.slot || !draft.branchId) return
     // not signed in yet: keep the draft and come back here after
     if (!session) {
       navigate('/signin?next=/book')
@@ -117,7 +160,7 @@ export function BookPage() {
     try {
       const booking = draft.moveId
         ? await api.rescheduleBooking(draft.moveId, barberChoice, draft.slot)
-        : await api.book(service.id, barberChoice, draft.slot)
+        : await api.book(service.id, draft.branchId, barberChoice, draft.slot)
       // the booking is safe now; a failed upload only means "add it again from My bookings"
       let failed = 0
       for (const item of draft.moveId ? [] : inspo) {
@@ -139,7 +182,7 @@ export function BookPage() {
       // someone took the time a moment ago: go back and show fresh times
       if (/no longer free/i.test(message)) {
         setDraft((d) => ({ ...d, slot: undefined }))
-        setStep(2)
+        setStepKey('time')
       }
     } finally {
       setSubmitting(false)
@@ -147,20 +190,27 @@ export function BookPage() {
   }
 
   function next() {
-    if (step < 3) setStep(step + 1)
+    if (shownKey !== 'review') setStepKey(flow[step + 1]!)
     else void confirm()
   }
 
   if (done) return <Booked booking={done} timeFormat={timeFormat} moved={Boolean(draft.moveId || params.get('move'))} inspoFailed={inspoFailed} />
 
   const primaryLabel =
-    step < 3 ? 'Continue' : !session ? 'Sign in to continue' : draft.moveId ? 'Request new time' : 'Send request'
+    shownKey !== 'review' ? 'Continue' : !session ? 'Sign in to continue' : draft.moveId ? 'Request new time' : 'Send request'
 
   return (
     <div className="mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 lg:pt-10 lg:pb-20">
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12">
         <div className="min-w-0">
-          <StepHeader step={step} onBack={step > 0 ? () => setStep(step - 1) : undefined} onJump={setStep} canJumpTo={(i) => i < step} moving={Boolean(draft.moveId)} />
+          <StepHeader
+            steps={flow.map((k) => STEP_INFO[k])}
+            step={step}
+            onBack={step > 0 ? () => setStepKey(flow[step - 1]!) : undefined}
+            onJump={(i) => setStepKey(flow[i]!)}
+            canJumpTo={(i) => i < step}
+            moving={Boolean(draft.moveId)}
+          />
 
           {error && (
             <div className="mt-6">
@@ -168,8 +218,20 @@ export function BookPage() {
             </div>
           )}
 
-          <div className="mt-8" key={step}>
-            {step === 0 && (
+          <div className="mt-8" key={shownKey}>
+            {shownKey === 'branch' && (
+              <BranchStep
+                branches={branches.data}
+                barbers={barbers.data}
+                hours={hours.data}
+                selected={draft.branchId}
+                onPick={(id) => {
+                  update({ branchId: id })
+                  goOn('branch', { branch: true, barber: false })
+                }}
+              />
+            )}
+            {shownKey === 'service' && (
               <ServiceStep
                 services={services.data}
                 loading={services.loading}
@@ -177,26 +239,27 @@ export function BookPage() {
                 locked={Boolean(draft.moveId)}
                 onPick={(id) => {
                   update({ serviceId: id })
-                  setStep(1)
+                  goOn('service', { service: true })
                 }}
               />
             )}
-            {step === 1 && (
+            {shownKey === 'barber' && (
               <BarberStep
-                barbers={barbers.data}
+                barbers={branchBarbers}
                 selected={draft.barberId}
                 onPick={(id) => {
                   update({ barberId: id })
-                  setStep(2)
+                  setStepKey('time')
                 }}
               />
             )}
-            {step === 2 && service && (
+            {shownKey === 'time' && service && draft.branchId && (
               <TimeStep
                 serviceId={service.id}
+                branchId={draft.branchId}
                 barberId={barberChoice}
                 daysAhead={rules.data?.booking_days_ahead ?? 14}
-                openDays={hours.data?.map((h) => h.weekday)}
+                openDays={branchHours?.map((h) => h.weekday)}
                 date={draft.date ?? manilaToday()}
                 datePicked={draft.date !== undefined}
                 slot={draft.slot}
@@ -205,8 +268,10 @@ export function BookPage() {
                 onSlot={(slot) => setDraft((d) => ({ ...d, slot, date: manilaDateOf(slot) }))}
               />
             )}
-            {step === 3 && service && draft.slot && (
+            {shownKey === 'review' && service && draft.slot && (
               <ReviewStep
+                branch={branch}
+                showBranch={askBranch}
                 service={service}
                 barber={barber}
                 slot={draft.slot}
@@ -224,7 +289,14 @@ export function BookPage() {
         {/* desktop: summary on the side, holding the one primary button */}
         <aside className="hidden lg:block">
           <div className="sticky top-24">
-            <Summary service={service} barber={barber} anyBarber={draft.barberId === ANY} slot={draft.slot} timeFormat={timeFormat} />
+            <Summary
+              branch={askBranch ? branch : undefined}
+              service={service}
+              barber={barber}
+              anyBarber={draft.barberId === ANY}
+              slot={draft.slot}
+              timeFormat={timeFormat}
+            />
             <Button className="mt-4 h-12 w-full text-[16px]" disabled={!canContinue} loading={submitting} onClick={next}>
               {primaryLabel}
               {!submitting && <ArrowRight size={18} />}
@@ -245,8 +317,13 @@ export function BookPage() {
                   {draft.slot && ` · ${relativeDay(manilaDateOf(draft.slot))}, ${formatTime(draft.slot, timeFormat)}`}
                 </p>
               </>
+            ) : branch && askBranch ? (
+              <>
+                <p className="truncate font-medium">{branch.name}</p>
+                <p className="truncate text-ink-2">Now pick a service</p>
+              </>
             ) : (
-              <p className="text-ink-2">Pick a service to start</p>
+              <p className="text-ink-2">{askBranch ? 'Pick a location to start' : 'Pick a service to start'}</p>
             )}
           </div>
           <Button className="h-12 shrink-0 px-6" disabled={!canContinue} loading={submitting} onClick={next}>
@@ -258,13 +335,63 @@ export function BookPage() {
   )
 }
 
+/** The locations: name, address, how many barbers, and today's hours. */
+function BranchStep({
+  branches,
+  barbers,
+  hours,
+  selected,
+  onPick,
+}: {
+  branches?: Branch[]
+  barbers?: Barber[]
+  hours?: OpeningHours[]
+  selected?: string
+  onPick: (id: string) => void
+}) {
+  if (!branches) {
+    return (
+      <div className="grid grid-cols-1 gap-3">
+        {Array.from({ length: 2 }, (_, i) => (
+          <Skeleton key={i} className="h-28" />
+        ))}
+      </div>
+    )
+  }
+  const today = weekdayOf(manilaToday())
+  return (
+    <div role="radiogroup" aria-label="Location" className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      {branches.map((b) => {
+        const count = barbers?.filter((x) => x.branch_id === b.id).length ?? 0
+        const open = hours?.find((h) => h.branch_id === b.id && h.weekday === today)
+        return (
+          <Choice key={b.id} selected={b.id === selected} onClick={() => onPick(b.id)} className="flex items-start gap-4 p-5 pr-12">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-raised text-ink-2">
+              <MapPin size={20} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[16px] font-medium">{b.name}</span>
+              {b.address && <span className="mt-0.5 block text-[14px] leading-snug text-ink-2">{b.address}</span>}
+              <span className="num mt-2 block text-[13px] text-ink-3">
+                {count} barber{count === 1 ? '' : 's'} · {open ? `Today ${formatClock(open.opens_at, '12h')} – ${formatClock(open.closes_at, '12h')}` : 'Closed today'}
+              </span>
+            </span>
+          </Choice>
+        )
+      })}
+    </div>
+  )
+}
+
 function StepHeader({
+  steps,
   step,
   onBack,
   onJump,
   canJumpTo,
   moving,
 }: {
+  steps: { title: string; short: string }[]
   step: number
   onBack?: () => void
   onJump: (step: number) => void
@@ -289,7 +416,7 @@ function StepHeader({
       </div>
 
       <ol className="mt-4 flex gap-2" aria-label="Booking steps">
-        {STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const state = i < step ? 'done' : i === step ? 'current' : 'todo'
           return (
             <li key={s.short} className="flex-1">
@@ -316,9 +443,9 @@ function StepHeader({
       </ol>
 
       <p className="mt-6 text-[14px] text-ink-2">
-        Step {step + 1} of {STEPS.length}
+        Step {step + 1} of {steps.length}
       </p>
-      <h1 className="mt-1 text-[30px] leading-tight font-semibold tracking-tight sm:text-[36px]">{STEPS[step]!.title}</h1>
+      <h1 className="mt-1 text-[30px] leading-tight font-semibold tracking-tight sm:text-[36px]">{steps[step]!.title}</h1>
     </div>
   )
 }
@@ -435,6 +562,7 @@ function BarberStep({ barbers, selected, onPick }: { barbers?: Barber[]; selecte
 
 function TimeStep({
   serviceId,
+  branchId,
   barberId,
   daysAhead,
   openDays,
@@ -446,6 +574,7 @@ function TimeStep({
   onSlot,
 }: {
   serviceId: string
+  branchId: string
   barberId: string | null
   daysAhead: number
   openDays?: number[]
@@ -457,7 +586,7 @@ function TimeStep({
   onSlot: (slot: string) => void
 }) {
   const days = useMemo(() => Array.from({ length: daysAhead + 1 }, (_, i) => addDays(manilaToday(), i)), [daysAhead])
-  const slots = useLoad(() => api.freeSlots(serviceId, barberId, date), [serviceId, barberId, date])
+  const slots = useLoad(() => api.freeSlots(serviceId, branchId, barberId, date), [serviceId, branchId, barberId, date])
 
   // in the evening today is usually full or closed: if the customer hasn't picked a day, start on tomorrow
   const todayIsEmpty = !datePicked && date === manilaToday() && !slots.loading && slots.data?.length === 0
@@ -568,6 +697,8 @@ function hoursText(minutes: number): string {
 }
 
 function ReviewStep({
+  branch,
+  showBranch,
   service,
   barber,
   slot,
@@ -578,6 +709,8 @@ function ReviewStep({
   inspo,
   onInspo,
 }: {
+  branch?: Branch
+  showBranch: boolean
   service: Service
   barber?: Barber
   slot: string
@@ -591,6 +724,7 @@ function ReviewStep({
   return (
     <div className="space-y-4">
       <Glass className="divide-y divide-[var(--glass-line)]">
+        {showBranch && branch && <Row Icon={MapPin} label="Location" value={branch.name} detail={branch.address ?? undefined} />}
         <Row Icon={Scissors} label="Service" value={service.name} detail={`${duration(service.duration_minutes)} · ${peso(service.price_centavos)}`} />
         <Row Icon={User} label="Barber" value={barber?.display_name ?? 'Any barber'} detail={barber ? undefined : "We'll pick who's free at that time"} />
         <Row
@@ -657,12 +791,14 @@ function Row({ Icon, label, value, detail }: { Icon: typeof Clock; label: string
 }
 
 function Summary({
+  branch,
   service,
   barber,
   anyBarber,
   slot,
   timeFormat,
 }: {
+  branch?: Branch
   service?: Service
   barber?: Barber
   anyBarber: boolean
@@ -670,6 +806,7 @@ function Summary({
   timeFormat: '12h' | '24h'
 }) {
   const lines = [
+    ...(branch ? [{ label: 'Location', value: branch.name }] : []),
     { label: 'Service', value: service?.name },
     { label: 'Barber', value: barber?.display_name ?? (anyBarber ? 'Any barber' : undefined) },
     { label: 'When', value: slot ? `${relativeDay(manilaDateOf(slot))}, ${formatTime(slot, timeFormat)}` : undefined },
@@ -722,6 +859,7 @@ function Booked({ booking, timeFormat, moved, inspoFailed }: { booking: Booking;
         <p className="num mt-1 text-center text-[34px] font-semibold tracking-[0.12em]">{booking.code}</p>
         <dl className="mt-6 space-y-3 border-t border-glass-line pt-6 text-[15px]">
           {[
+            ...(booking.branch ? [['Location', booking.branch]] : []),
             ['Service', booking.service],
             ['Barber', booking.barber ?? 'Any barber'],
             ['When', `${formatTime(booking.starts_at, timeFormat)}, ${formatDay(date)}`],

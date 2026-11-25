@@ -8,15 +8,24 @@ export type Service = {
   price_centavos: number
 }
 
+/** A location. Each has its own barbers and opening hours. */
+export type Branch = {
+  id: string
+  name: string
+  address: string | null
+  phone: string | null
+}
+
 export type Barber = {
   id: string
+  branch_id: string
   display_name: string
   bio: string | null
   photo_url: string | null
 }
 
-/** weekday: 0 = Sunday. Times are "HH:MM:SS" in Manila. */
-export type OpeningHours = { weekday: number; opens_at: string; closes_at: string }
+/** weekday: 0 = Sunday. Times are "HH:MM:SS" in Manila. One row per branch per open day. */
+export type OpeningHours = { branch_id: string; weekday: number; opens_at: string; closes_at: string }
 
 export type BookingRules = {
   slot_step_minutes: number
@@ -36,6 +45,8 @@ export type Booking = {
   status: BookingStatus
   service_id: string
   service: string
+  branch_id?: string
+  branch?: string | null
   barber_id: string | null
   barber: string | null
   price_centavos: number
@@ -53,6 +64,8 @@ export type BookingRequest = {
   ends_at: string
   service: string
   price_centavos: number
+  branch_id: string
+  branch: string
   barber_id: string | null
   barber: string | null
   customer: string
@@ -111,11 +124,12 @@ export type Inspo = { id: string; kind: 'image' | 'video'; url: string | null }
 export type Api = {
   // public
   listServices(): Promise<Service[]>
+  listBranches(): Promise<Branch[]>
   listBarbers(): Promise<Barber[]>
   openingHours(): Promise<OpeningHours[]>
   bookingRules(): Promise<BookingRules>
-  /** Free start times (ISO strings) for a Manila date "YYYY-MM-DD". barberId null = any barber. */
-  freeSlots(serviceId: string, barberId: string | null, date: string): Promise<string[]>
+  /** Free start times (ISO strings) for a Manila date "YYYY-MM-DD". branchId null = every branch; barberId null = any barber. */
+  freeSlots(serviceId: string, branchId: string | null, barberId: string | null, date: string): Promise<string[]>
 
   // account
   getSession(): Promise<Session | null>
@@ -143,7 +157,7 @@ export type Api = {
   deleteMyData(): Promise<void>
 
   // bookings
-  book(serviceId: string, barberId: string | null, startsAt: string): Promise<Booking>
+  book(serviceId: string, branchId: string, barberId: string | null, startsAt: string): Promise<Booking>
   myBookings(): Promise<Booking[]>
   cancelBooking(id: string): Promise<Booking>
   rescheduleBooking(id: string, barberId: string | null, startsAt: string): Promise<Booking>

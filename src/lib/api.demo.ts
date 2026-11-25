@@ -1,5 +1,5 @@
 import { manilaDateOf, manilaToday, manilaWallClock, addDays } from './dates'
-import type { Api, Barber, BarberReviews, Booking, BookingRequest, BookingRules, Inspo, OpeningHours, Profile, Review, Service, Session, StaffRole } from './types'
+import type { Api, Barber, BarberReviews, Booking, Branch, BookingRequest, BookingRules, Inspo, OpeningHours, Profile, Review, Service, Session, StaffRole } from './types'
 
 // Sample data for working on the screens without a database.
 // Development only: api.ts never loads this file in a production build.
@@ -13,17 +13,28 @@ const services: Service[] = [
   { id: 's5', name: 'Kids cut', description: 'For 12 and under.', duration_minutes: 30, price_centavos: 20000 },
 ]
 
-const barbers: Barber[] = [
-  { id: 'b1', display_name: 'Sample Barber 1', bio: 'Fades and tapers.', photo_url: null },
-  { id: 'b2', display_name: 'Sample Barber 2', bio: 'Classic cuts and beards.', photo_url: null },
-  { id: 'b3', display_name: 'Sample Barber 3', bio: 'Textured crops.', photo_url: null },
+// two made-up branches, so the location step can be tried
+const branches: Branch[] = [
+  { id: 'br1', name: 'Sample Branch One', address: '123 Sample Street, Sample City', phone: '0917 000 0001' },
+  { id: 'br2', name: 'Sample Branch Two', address: '45 Example Avenue, Sample City', phone: null },
 ]
 
-const hours: OpeningHours[] = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
-  weekday,
-  opens_at: weekday === 0 ? '10:00:00' : '09:00:00',
-  closes_at: weekday === 0 ? '17:00:00' : '20:00:00',
-}))
+const barbers: Barber[] = [
+  { id: 'b1', branch_id: 'br1', display_name: 'Sample Barber 1', bio: 'Fades and tapers.', photo_url: null },
+  { id: 'b2', branch_id: 'br1', display_name: 'Sample Barber 2', bio: 'Classic cuts and beards.', photo_url: null },
+  { id: 'b3', branch_id: 'br2', display_name: 'Sample Barber 3', bio: 'Textured crops.', photo_url: null },
+]
+
+// Branch One: 9 to 8 (Sunday 10 to 5). Branch Two: 11 to 9, closed Mondays.
+const hours: OpeningHours[] = [
+  ...[0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+    branch_id: 'br1',
+    weekday,
+    opens_at: weekday === 0 ? '10:00:00' : '09:00:00',
+    closes_at: weekday === 0 ? '17:00:00' : '20:00:00',
+  })),
+  ...[0, 2, 3, 4, 5, 6].map((weekday) => ({ branch_id: 'br2', weekday, opens_at: '11:00:00', closes_at: '21:00:00' })),
+]
 
 const rules: BookingRules = { slot_step_minutes: 15, booking_days_ahead: 14, min_notice_minutes: 60, cancel_cutoff_minutes: 120 }
 
@@ -74,20 +85,27 @@ function sampleBusy(barberId: string, start: Date): boolean {
   return n % 7 === 0 || n % 11 === 0
 }
 
-function slotsFor(serviceId: string, barberId: string | null, date: string): string[] {
+// is this barber's branch open for the whole of [start, end)?
+function branchOpen(barberId: string, date: string, start: number, end: number): boolean {
+  const branchId = barbers.find((b) => b.id === barberId)?.branch_id
+  const day = hours.find((h) => h.branch_id === branchId && h.weekday === new Date(`${date}T00:00:00+08:00`).getUTCDay())
+  return Boolean(day) && manilaWallClock(date, day!.opens_at).getTime() <= start && manilaWallClock(date, day!.closes_at).getTime() >= end
+}
+
+function slotsFor(serviceId: string, branchId: string | null, barberId: string | null, date: string): string[] {
   const service = services.find((s) => s.id === serviceId)
-  const day = hours.find((h) => h.weekday === new Date(`${date}T00:00:00+08:00`).getUTCDay())
-  if (!service || !day || date < manilaToday() || date > addDays(manilaToday(), rules.booking_days_ahead)) return []
-  const open = manilaWallClock(date, day.opens_at).getTime()
-  const close = manilaWallClock(date, day.closes_at).getTime()
+  if (!service || date < manilaToday() || date > addDays(manilaToday(), rules.booking_days_ahead)) return []
+  const candidates = barbers.filter((b) => (!barberId || b.id === barberId) && (!branchId || b.branch_id === branchId)).map((b) => b.id)
   const earliest = Date.now() + rules.min_notice_minutes * 60000
   const out: string[] = []
-  for (let t = open; t + service.duration_minutes * 60000 <= close; t += rules.slot_step_minutes * 60000) {
+  // every 15 minutes of the day; each barber's own branch hours decide
+  for (let t = manilaWallClock(date, '06:00:00').getTime(); t < manilaWallClock(date, '23:00:00').getTime(); t += rules.slot_step_minutes * 60000) {
     const start = new Date(t)
     const end = new Date(t + service.duration_minutes * 60000)
     if (t < earliest) continue
-    const candidates = barberId ? [barberId] : barbers.map((b) => b.id)
-    if (candidates.some((id) => isFree(id, start, end) && !sampleBusy(id, start))) out.push(start.toISOString())
+    if (candidates.some((id) => branchOpen(id, date, t, end.getTime()) && isFree(id, start, end) && !sampleBusy(id, start))) {
+      out.push(start.toISOString())
+    }
   }
   return out
 }
@@ -122,6 +140,10 @@ export const demoApi: Api = {
     await wait()
     return services
   },
+  async listBranches() {
+    await wait(150)
+    return branches
+  },
   async listBarbers() {
     await wait()
     return barbers
@@ -132,9 +154,9 @@ export const demoApi: Api = {
   async bookingRules() {
     return rules
   },
-  async freeSlots(serviceId, barberId, date) {
+  async freeSlots(serviceId, branchId, barberId, date) {
     await wait(300)
-    return slotsFor(serviceId, barberId, date)
+    return slotsFor(serviceId, branchId, barberId, date)
   },
 
   async getSession() {
@@ -235,16 +257,19 @@ export const demoApi: Api = {
     setSession(null)
   },
 
-  async book(serviceId, barberId, startsAt) {
+  async book(serviceId, branchId, barberId, startsAt) {
     await wait(400)
     needProfile()
     const service = services.find((s) => s.id === serviceId)!
     const date = manilaDateOf(startsAt)
-    if (!slotsFor(serviceId, barberId, date).includes(startsAt)) throw new Error('That time is no longer free. Please pick another.')
+    if (barberId && barbers.find((b) => b.id === barberId)?.branch_id !== branchId) throw new Error('That barber works at another location')
+    if (!slotsFor(serviceId, branchId, barberId, date).includes(startsAt)) throw new Error('That time is no longer free. Please pick another.')
     const start = new Date(startsAt)
     const end = new Date(start.getTime() + service.duration_minutes * 60000)
-    const chosen = barberId ?? barbers.find((b) => isFree(b.id, start, end) && !sampleBusy(b.id, start))!.id
-    const booking = {
+    const chosen =
+      barberId ??
+      barbers.find((b) => b.branch_id === branchId && branchOpen(b.id, date, start.getTime(), end.getTime()) && isFree(b.id, start, end) && !sampleBusy(b.id, start))!.id
+    const booking: Booking = {
       id: crypto.randomUUID(),
       code: Math.random().toString(16).slice(2, 10).toUpperCase(),
       starts_at: startsAt,
@@ -252,6 +277,8 @@ export const demoApi: Api = {
       status: 'requested' as const,
       service_id: service.id,
       service: service.name,
+      branch_id: branchId,
+      branch: branches.find((b) => b.id === branchId)?.name ?? null,
       barber: barbers.find((b) => b.id === chosen)!.display_name,
       barber_id: chosen,
       price_centavos: service.price_centavos,
@@ -275,7 +302,7 @@ export const demoApi: Api = {
     if (!old) throw new Error('Booking not found')
     old.status = 'cancelled'
     try {
-      const moved = await demoApi.book(old.service_id, barberId, startsAt)
+      const moved = await demoApi.book(old.service_id, old.branch_id ?? 'br1', barberId, startsAt)
       for (const item of inspo.values()) if (item.bookingId === id) item.bookingId = moved.id
       return moved
     } catch (error) {
@@ -332,6 +359,8 @@ export const demoApi: Api = {
         ends_at: b.ends_at,
         service: b.service,
         price_centavos: b.price_centavos,
+        branch_id: b.branch_id ?? 'br1',
+        branch: b.branch ?? 'Sample Branch One',
         barber_id: b.barber_id,
         barber: b.barber,
         customer: profile?.full_name ?? 'Sample Customer',

@@ -39,7 +39,7 @@ describe('signed-out visitors', () => {
         and (has_table_privilege('anon', c.oid, 'select') or has_table_privilege('anon', c.oid, 'insert')
           or has_table_privilege('anon', c.oid, 'update') or has_table_privilege('anon', c.oid, 'delete'))
       order by 1`)
-    expect(open.map((r) => r.relname)).toEqual(['barbers', 'services'])
+    expect(open.map((r) => r.relname)).toEqual(['barbers', 'branches', 'services'])
   })
 
   test('can only call the public functions', async () => {
@@ -48,7 +48,8 @@ describe('signed-out visitors', () => {
       where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')
       order by 1`)
     expect(callable.map((r) => r.proname)).toEqual([
-      'barber_ratings', 'barber_reviews', 'booking_rules', 'get_free_slots', 'manila_at', 'manila_date', 'manila_today',
+      // get_free_slots twice: with a branch, and the older call without one
+      'barber_ratings', 'barber_reviews', 'booking_rules', 'get_free_slots', 'get_free_slots', 'manila_at', 'manila_date', 'manila_today',
       'public_shop_hours', 'username_available',
     ])
   })

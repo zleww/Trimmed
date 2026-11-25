@@ -13,6 +13,7 @@ export function SettingsPage() {
   const { session, profile, setProfile, signOut } = useAuth()
   const navigate = useNavigate()
   const barbers = useLoad(() => api.listBarbers(), [])
+  const branches = useLoad(() => api.listBranches(), [])
   const [message, setMessage] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -93,11 +94,24 @@ export function SettingsPage() {
             className="h-12 w-full rounded-2xl border border-glass-line bg-[var(--glass)] px-4 text-[16px] text-ink outline-none focus:border-ink-2 sm:w-64"
           >
             <option value="">No favourite</option>
-            {barbers.data?.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.display_name}
-              </option>
-            ))}
+            {/* grouped by location when there is more than one */}
+            {(branches.data?.length ?? 0) > 1
+              ? branches.data!.map((branch) => (
+                  <optgroup key={branch.id} label={branch.name}>
+                    {barbers.data
+                      ?.filter((b) => b.branch_id === branch.id)
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.display_name}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))
+              : barbers.data?.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.display_name}
+                  </option>
+                ))}
           </select>
         </Row>
       </Section>

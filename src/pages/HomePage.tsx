@@ -1,17 +1,19 @@
 import { Link } from 'react-router'
 import { BarberCard } from '../components/Barbers'
-import { ArrowRight, Calendar, CheckCircle, ChevronRight, Clock, Scissors, Users } from '../components/icons'
+import { ArrowRight, Calendar, CheckCircle, ChevronRight, Clock, MapPin, Scissors, Users } from '../components/icons'
 import { ButtonLink, Eyebrow, Glass, Skeleton } from '../components/ui'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { addDays, formatClock, formatTime, manilaToday, relativeDay, WEEKDAYS, weekdayOf } from '../lib/dates'
 import { duration, peso } from '../lib/format'
+import type { Branch, OpeningHours } from '../lib/types'
 import { useLoad } from '../lib/useLoad'
 
 export function HomePage() {
   const { profile } = useAuth()
   const timeFormat = profile?.time_format ?? '12h'
   const services = useLoad(() => api.listServices(), [])
+  const branches = useLoad(() => api.listBranches(), [])
   const barbers = useLoad(() => api.listBarbers(), [])
   const hours = useLoad(() => api.openingHours(), [])
   const ratings = useLoad(() => api.barberRatings(), [])
@@ -62,12 +64,38 @@ export function HomePage() {
       {/* barbers */}
       <section id="barbers" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-24">
         <SectionHead eyebrow="Barbers" title="Pick who cuts your hair" text="See their reviews, star your favourite, or take the first one free." />
-        <div className="mt-10 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {barbers.loading && !barbers.data
-            ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="aspect-[4/5]" />)
-            : barbers.data?.map((barber) => <BarberCard key={barber.id} barber={barber} rating={ratings.data?.[barber.id]} />)}
-          {barbers.data?.length === 0 && <EmptyNote text="Our barbers will be listed here soon." />}
-        </div>
+        {barbers.loading && !barbers.data ? (
+          <div className="mt-10 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="aspect-[4/5]" />
+            ))}
+          </div>
+        ) : barbers.data?.length === 0 ? (
+          <div className="mt-10 grid grid-cols-1">
+            <EmptyNote text="Our barbers will be listed here soon." />
+          </div>
+        ) : (
+          // with more than one branch, each branch's barbers sit under its name
+          (branches.data && branches.data.length > 1 ? branches.data : [null]).map((branch) => {
+            const list = (barbers.data ?? []).filter((b) => !branch || b.branch_id === branch.id)
+            if (list.length === 0) return null
+            return (
+              <div key={branch?.id ?? 'all'} className="mt-10">
+                {branch && (
+                  <h3 className="mb-4 flex items-center gap-2 text-[17px] font-medium">
+                    <MapPin size={18} className="text-accent" />
+                    {branch.name}
+                  </h3>
+                )}
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {list.map((barber) => (
+                    <BarberCard key={barber.id} barber={barber} rating={ratings.data?.[barber.id]} />
+                  ))}
+                </div>
+              </div>
+            )
+          })
+        )}
       </section>
 
       {/* how it works */}
@@ -95,42 +123,19 @@ export function HomePage() {
         </ol>
       </section>
 
-      {/* hours */}
+      {/* locations, each with its own hours */}
       <section id="visit" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-24">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-start">
-          <SectionHead
-            eyebrow="Visit"
-            title="Opening hours"
-            text="All times are Philippine time. Booking ahead saves you the wait."
-          />
-          {/* TODO: shop address and map, once the owner approves showing them */}
-          <Glass className="p-2">
-            <ul>
-              {(hours.data ?? []).length === 0 && !hours.loading && (
-                <li className="px-4 py-3 text-ink-2">Hours will be posted soon.</li>
-              )}
-              {[1, 2, 3, 4, 5, 6, 0].map((weekday) => {
-                const day = hours.data?.find((h) => h.weekday === weekday)
-                const isToday = weekdayOf(manilaToday()) === weekday
-                // nothing set yet: the note above says so, don't list 7 closed days
-                if (!hours.data || hours.data.length === 0) return null
-                return (
-                  <li
-                    key={weekday}
-                    className={`flex items-center justify-between rounded-2xl px-4 py-3 text-[15px] ${isToday ? 'bg-raised' : ''}`}
-                  >
-                    <span className={isToday ? 'font-medium text-ink' : 'text-ink-2'}>
-                      {WEEKDAYS[weekday]}
-                      {isToday && <span className="ml-2 text-[13px] text-good">Today</span>}
-                    </span>
-                    <span className={`num ${isToday ? 'text-ink' : 'text-ink-2'}`}>
-                      {day ? `${formatClock(day.opens_at, timeFormat)} – ${formatClock(day.closes_at, timeFormat)}` : 'Closed'}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          </Glass>
+        <SectionHead
+          eyebrow="Visit"
+          title={(branches.data?.length ?? 0) > 1 ? 'Our locations' : 'Location and hours'}
+          text="All times are Philippine time. Booking ahead saves you the wait."
+        />
+        <div className="mt-10 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {branches.loading && !branches.data && <Skeleton className="h-80" />}
+          {branches.data?.length === 0 && <EmptyNote text="Our location will be posted soon." />}
+          {branches.data?.map((branch) => (
+            <BranchCard key={branch.id} branch={branch} hours={(hours.data ?? []).filter((h) => h.branch_id === branch.id)} timeFormat={timeFormat} />
+          ))}
         </div>
       </section>
 
@@ -148,6 +153,58 @@ export function HomePage() {
         </Glass>
       </section>
     </>
+  )
+}
+
+/** One location: name, address, directions, phone, and its week of hours. */
+function BranchCard({ branch, hours, timeFormat }: { branch: Branch; hours: OpeningHours[]; timeFormat: '12h' | '24h' }) {
+  const today = weekdayOf(manilaToday())
+  // a plain link to a map search: no map is loaded on our page
+  const directions = branch.address
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${branch.name}, ${branch.address}`)}`
+    : null
+  return (
+    <Glass className="p-2">
+      <div className="px-4 pt-4 pb-3">
+        <h3 className="flex items-center gap-2 text-[18px] font-medium">
+          <MapPin size={18} className="shrink-0 text-accent" />
+          {branch.name}
+        </h3>
+        {branch.address && <p className="mt-1 text-[15px] leading-relaxed text-ink-2">{branch.address}</p>}
+        <div className="mt-2 flex flex-wrap gap-x-5">
+          {directions && (
+            <a href={directions} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 text-[14px] font-medium text-ink underline-offset-4 hover:underline">
+              Directions
+              <ArrowRight size={14} />
+            </a>
+          )}
+          {branch.phone && (
+            <a href={`tel:${branch.phone.replace(/\s/g, '')}`} className="num inline-flex min-h-11 items-center text-[14px] text-ink-2 hover:text-ink">
+              {branch.phone}
+            </a>
+          )}
+        </div>
+      </div>
+      <ul className="border-t border-glass-line pt-1">
+        {hours.length === 0 && <li className="px-4 py-3 text-ink-2">Hours will be posted soon.</li>}
+        {hours.length > 0 &&
+          [1, 2, 3, 4, 5, 6, 0].map((weekday) => {
+            const day = hours.find((h) => h.weekday === weekday)
+            const isToday = today === weekday
+            return (
+              <li key={weekday} className={`flex items-center justify-between rounded-2xl px-4 py-2.5 text-[15px] ${isToday ? 'bg-raised' : ''}`}>
+                <span className={isToday ? 'font-medium text-ink' : 'text-ink-2'}>
+                  {WEEKDAYS[weekday]}
+                  {isToday && <span className="ml-2 text-[13px] text-good">Today</span>}
+                </span>
+                <span className={`num ${isToday ? 'text-ink' : 'text-ink-2'}`}>
+                  {day ? `${formatClock(day.opens_at, timeFormat)} – ${formatClock(day.closes_at, timeFormat)}` : 'Closed'}
+                </span>
+              </li>
+            )
+          })}
+      </ul>
+    </Glass>
   )
 }
 
@@ -186,7 +243,8 @@ function Hero({
   const next = useLoad(async () => {
     if (!firstServiceId) return null
     for (const date of [manilaToday(), addDays(manilaToday(), 1)]) {
-      const slots = await api.freeSlots(firstServiceId, null, date)
+      // any branch, any barber
+      const slots = await api.freeSlots(firstServiceId, null, null, date)
       if (slots.length > 0) return { date, time: slots[0]!, count: slots.length }
     }
     return null

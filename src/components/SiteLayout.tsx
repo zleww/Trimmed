@@ -25,8 +25,9 @@ export function LogoMark({ size = 36 }: { size?: number }) {
 export function Logo() {
   return (
     <Link to="/" className="flex min-h-11 items-center gap-2.5 rounded-full" aria-label="Trimmed, home">
-      <LogoMark size={36} />
-      <span className="font-display text-[21px] font-medium tracking-[-0.01em]">Trimmed</span>
+      <LogoMark size={34} />
+      {/* a touch smaller on the narrowest phones so the header buttons still fit */}
+      <span className="font-display text-[19px] font-medium tracking-[-0.01em] min-[360px]:text-[21px]">Trimmed</span>
     </Link>
   )
 }
@@ -37,7 +38,7 @@ const YEAR = new Date().getFullYear()
 const navItems = [
   { to: '/#services', label: 'Services' },
   { to: '/#barbers', label: 'Barbers' },
-  { to: '/#visit', label: 'Hours' },
+  { to: '/#visit', label: 'Locations' },
 ]
 
 export function SiteLayout() {
@@ -56,7 +57,7 @@ export function SiteLayout() {
       )}
 
       <header className="sticky top-0 z-30 border-b border-glass-line bg-bg/70 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-6">
           <Logo />
 
           <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
@@ -71,13 +72,13 @@ export function SiteLayout() {
             {(staffRole === 'owner' || staffRole === 'desk') && (
               <NavLink
                 to="/shop"
-                className={({ isActive }) => buttonClass(isActive ? 'secondary' : 'ghost', 'min-h-10 px-4 text-[14px]')}
+                className={({ isActive }) => buttonClass(isActive ? 'secondary' : 'ghost', 'min-h-10 px-3 text-[14px] min-[360px]:px-4')}
               >
                 Shop
               </NavLink>
             )}
             {!onBooking && !staffRole && (
-              <Link to="/book" className={buttonClass('secondary', 'min-h-10 px-4 text-[14px]')}>
+              <Link to="/book" className={buttonClass('secondary', 'min-h-10 px-3 text-[14px] min-[360px]:px-4')}>
                 Book
               </Link>
             )}
@@ -90,7 +91,7 @@ export function SiteLayout() {
                 <Avatar name={profile?.full_name ?? session.email} url={profile?.avatar_url} size={34} />
               </NavLink>
             ) : (
-              <Link to="/signin" className={buttonClass('ghost', 'min-h-10 px-4 text-[14px]')}>
+              <Link to="/signin" className={buttonClass('ghost', 'min-h-10 px-3 text-[14px] min-[360px]:px-4')}>
                 Sign in
               </Link>
             )}

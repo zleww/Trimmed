@@ -140,7 +140,9 @@ function Requests() {
                   </Line>
                   <Line Icon={Scissors} label="Service">
                     {r.service} · <span className="num">{peso(r.price_centavos)}</span>
-                    <span className="block text-[14px] text-ink-2">with {r.barber ?? 'any barber'}</span>
+                    <span className="block text-[14px] text-ink-2">
+                      with {r.barber ?? 'any barber'} at {r.branch}
+                    </span>
                   </Line>
                   <Line Icon={Calendar} label="History">
                     <span className="num">

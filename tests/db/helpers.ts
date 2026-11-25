@@ -64,6 +64,7 @@ export async function manila(db: PGlite, days: number, time: string): Promise<st
 }
 
 export type Shop = {
+  branch: string // the "Main branch" every migration run starts with
   owner: string
   desk: string
   barberA: string // login of barber A
@@ -80,21 +81,22 @@ export type Shop = {
  * 9 AM to 8 PM every day, both barbers working those hours.
  */
 export async function setupShop(db: PGlite): Promise<Shop> {
-  const chairA = await value(db, "insert into public.barbers (display_name, sort) values ('Barber A', 1) returning id as r")
-  const chairB = await value(db, "insert into public.barbers (display_name, sort) values ('Barber B', 2) returning id as r")
+  const branch = await value(db, "select id as r from public.branches where name = 'Main branch'")
+  const chairA = await value(db, "insert into public.barbers (display_name, sort, branch_id) values ('Barber A', 1, $1) returning id as r", [branch])
+  const chairB = await value(db, "insert into public.barbers (display_name, sort, branch_id) values ('Barber B', 2, $1) returning id as r", [branch])
 
   const owner = await addLogin(db)
   const desk = await addLogin(db)
   const barberA = await addLogin(db)
   const barberB = await addLogin(db)
   await db.query("insert into public.staff (id, full_name, role) values ($1, 'Owner', 'owner')", [owner])
-  await db.query("insert into public.staff (id, full_name, role) values ($1, 'Desk', 'desk')", [desk])
+  await db.query("insert into public.staff (id, full_name, role, branch_id) values ($1, 'Desk', 'desk', $2)", [desk, branch])
   await db.query("insert into public.staff (id, full_name, role, barber_id) values ($1, 'Barber A', 'barber', $2)", [barberA, chairA])
   await db.query("insert into public.staff (id, full_name, role, barber_id) values ($1, 'Barber B', 'barber', $2)", [barberB, chairB])
 
   await db.exec(`
-    insert into public.shop_hours (weekday, opens_at, closes_at)
-    select d, '09:00', '20:00' from generate_series(0, 6) d;
+    insert into public.shop_hours (branch_id, weekday, opens_at, closes_at)
+    select id, d, '09:00', '20:00' from public.branches, generate_series(0, 6) d;
     insert into public.barber_hours (barber_id, weekday, starts_at, ends_at)
     select b.id, d, '09:00', '20:00' from public.barbers b, generate_series(0, 6) d;
     insert into public.barber_pay (barber_id, service_commission_bp) select id, 4000 from public.barbers;
@@ -104,7 +106,7 @@ export async function setupShop(db: PGlite): Promise<Shop> {
   const shave = await value(db, "insert into public.services (name, duration_minutes, price_centavos) values ('Shave', 15, 15000) returning id as r")
   const pomade = await value(db, "insert into public.products (name, price_centavos, stock_qty) values ('Pomade', 35000, 5) returning id as r")
 
-  return { owner, desk, barberA, barberB, chairA, chairB, haircut, shave, pomade }
+  return { branch, owner, desk, barberA, barberB, chairA, chairB, haircut, shave, pomade }
 }
 
 /** A customer login with a finished profile. */

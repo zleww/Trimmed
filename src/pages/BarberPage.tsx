@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { FavouriteStar, StarPicker, Stars } from '../components/Barbers'
-import { ArrowRight, ChevronLeft, Trash } from '../components/icons'
+import { ArrowRight, ChevronLeft, MapPin, Trash } from '../components/icons'
 import { Avatar, Button, ButtonLink, Glass, Notice, Skeleton } from '../components/ui'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -16,6 +16,7 @@ export function BarberPage() {
   const { session, profile } = useAuth()
   const { pathname } = useLocation()
   const barbers = useLoad(() => api.listBarbers(), [])
+  const branches = useLoad(() => api.listBranches(), [])
   const ratings = useLoad(() => api.barberRatings(), [])
   // reload when the person changes, so "can I review?" and "mine" are right
   const reviews = useLoad(() => api.barberReviews(id), [id, session?.userId, profile?.id])
@@ -31,6 +32,8 @@ export function BarberPage() {
 
   const barber = barbers.data?.find((b) => b.id === id)
   const rating = ratings.data?.[id]
+  const branch = branches.data?.find((b) => b.id === barber?.branch_id)
+  const manyBranches = (branches.data?.length ?? 0) > 1
 
   if (barbers.loading && !barbers.data) {
     return (
@@ -75,9 +78,17 @@ export function BarberPage() {
         </div>
 
         <div className="min-w-0">
-          <p className="text-[13px] font-medium tracking-[0.14em] text-accent-ink uppercase">Barber</p>
+          <p className="text-[13px] font-medium tracking-[0.14em] text-accent-ink uppercase">
+            Barber{manyBranches && branch ? ` · ${branch.name}` : ''}
+          </p>
           <h1 className="mt-2 font-display text-[38px] leading-tight tracking-tight sm:text-[46px]">{barber.display_name}</h1>
           {barber.bio && <p className="mt-3 text-[16px] leading-relaxed text-ink-2">{barber.bio}</p>}
+          {manyBranches && branch?.address && (
+            <p className="mt-2 flex items-start gap-1.5 text-[14px] text-ink-3">
+              <MapPin size={16} className="mt-0.5 shrink-0" />
+              {branch.address}
+            </p>
+          )}
           <div className="mt-4 flex items-center gap-2 text-[15px] text-ink-2">
             {rating && rating.average !== null && rating.reviews > 0 ? (
               <>
@@ -91,7 +102,7 @@ export function BarberPage() {
               <span>No reviews yet</span>
             )}
           </div>
-          <ButtonLink to={`/book?barber=${barber.id}`} className="mt-6 h-12 w-full px-7 text-[16px] sm:w-auto">
+          <ButtonLink to={`/book?branch=${barber.branch_id}&barber=${barber.id}`} className="mt-6 h-12 w-full px-7 text-[16px] sm:w-auto">
             Book with {barber.display_name.split(' ')[0]}
             <ArrowRight size={18} />
           </ButtonLink>

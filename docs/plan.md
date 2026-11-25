@@ -27,6 +27,7 @@ Trimmed is the prototype name. The real shop's name, logo and customer data stay
 | 2026-11-25 | Inspo: up to 3 photos or videos (30 s, 25 MB max) per booking, seen only by the customer, the desk, the owner and that booking's barber. |
 | 2026-11-25 | Online bookings are requests. The owner or the desk confirms or declines (with a reason the customer sees). A waiting request holds its time. Desk and walk-in bookings are confirmed straight away. |
 | 2026-11-25 | The shop screens start inside this site at `/shop` (staff only), not as a separate app yet. Can be split later. |
+| 2026-11-25 | Several branches. Each barber works at one branch; each branch has its own hours and can close on its own days. Customers pick the location first (skipped when there is only one). The desk works one branch; the owner sees all. Services and prices are the same everywhere for now. |
 
 ## 3. Who can do what
 
@@ -93,6 +94,13 @@ Money is integer centavos. Times are `timestamptz`. "Today" means Asia/Manila.
 - A waiting request can be cancelled or moved any time before it starts; a confirmed booking keeps the cut-off.
 - `booking_requests` (owner and desk: name, number, visits, missed bookings, inspo count), `confirm_booking`, `decline_booking` (reason required, shown to the customer).
 
+**Migration 8, branches** (`20261125000008_branches.sql`)
+- `branches` table (name, address, phone, active). Everything that existed moved into "Main branch".
+- `branch_id` on barbers, shop_hours (one row per branch per weekday), shop_closures (no branch = all branches closed), staff (the desk's branch) and appointments (filled in from the barber by a trigger, which also refuses a mismatch).
+- Free times, "any barber" and bookings work per branch: `get_free_slots(service, branch, barber, date)`, `book_appointment(service, branch, barber, time)`. The older calls without a branch still work.
+- `my_branch_id`, `works_at`, `pick_branch`. The desk only sees and acts on its own branch (requests, queue, walk-ins, phone bookings, inspo); the owner sees all.
+- `public_shop_hours` returns the branch too.
+
 **Not built yet**
 - Payroll (waiting on the owner's pay rules and a check of this year's SSS, PhilHealth, Pag-IBIG and tax rates).
 - Owner dashboard and report functions.
@@ -110,6 +118,7 @@ Inspired by the structure of a local barbershop's booking site (rules, then date
 - **Account:** My bookings (upcoming and past, move or cancel inside the cut-off), Profile (photo the customer crops and zooms in a round frame before upload, name, mobile), Settings (theme, time format, favourite barber, promos, change password, sign out, delete my data).
 - **Barber page** (`/barbers/:id`): photo, bio, star rating, reviews, a star to make them your favourite, and "Book with...".
 - **Inspo**: add photos or short videos on the confirm step or later from My bookings.
+- **Locations**: with more than one branch, booking starts with "Choose a location" (address, number of barbers, today's hours). Barbers and times are that branch's. The home page groups barbers by branch and shows each location with its address, directions link and hours.
 - **Requests**: the last step is "Send request". My bookings shows "Waiting for the shop", "Confirmed", or "Declined" with the shop's reason.
 - **Shop** (`/shop`, owner and desk only): booking requests, soonest first, with the customer's number, history and inspo; Confirm, or Decline with a reason. Checks for new requests every minute.
 - **Forgot password**: the email link opens `/new-password` to type the new one (Settings > Change password opens the same page).
@@ -144,6 +153,7 @@ Inspired by the structure of a local barbershop's booking site (rules, then date
 3. Shop app look: same palette and glass style as the booking site (as in the dashboard reference)?
 
 **For the owner**
+0. The branches: names, addresses, phone numbers, hours, and which barbers work where. Are services and prices the same at every branch?
 1. Services, prices and how long each takes. Products sold.
 2. Number of barbers and chairs, opening hours, days off, holidays.
 3. Barber pay: commission % on services, on products too?, base pay?, who keeps tips?, pay period?

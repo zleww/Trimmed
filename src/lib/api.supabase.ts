@@ -1,5 +1,5 @@
 import type { AuthError, PostgrestError, SupabaseClient } from '@supabase/supabase-js'
-import type { Api, Barber, BarberReviews, Booking, BookingRequest, Inspo, Profile, Rating, Session, SignupDetails, StaffRole } from './types'
+import type { Api, Barber, BarberReviews, Branch, Booking, BookingRequest, Inspo, Profile, Rating, Session, SignupDetails, StaffRole } from './types'
 
 // Turns database and sign-in errors into plain sentences.
 // Our own database functions already raise plain messages (code P0001), so
@@ -91,9 +91,14 @@ export function createSupabaseApi(db: SupabaseClient): Api {
       return rows ?? []
     },
 
+    async listBranches() {
+      const rows = check(await db.from('branches').select('id, name, address, phone').eq('active', true).order('sort').order('name'))
+      return (rows ?? []) as Branch[]
+    },
+
     async listBarbers() {
       const rows = check(
-        await db.from('barbers').select('id, display_name, bio, photo_path').eq('active', true).order('sort'),
+        await db.from('barbers').select('id, branch_id, display_name, bio, photo_path').eq('active', true).order('sort'),
       ) as (Omit<Barber, 'photo_url'> & { photo_path: string | null })[]
       return rows.map(({ photo_path, ...barber }) => ({
         ...barber,
@@ -110,8 +115,10 @@ export function createSupabaseApi(db: SupabaseClient): Api {
       return rows[0]
     },
 
-    async freeSlots(serviceId, barberId, date) {
-      const rows = check(await db.rpc('get_free_slots', { p_service: serviceId, p_barber: barberId, p_date: date })) as {
+    async freeSlots(serviceId, branchId, barberId, date) {
+      const rows = check(
+        await db.rpc('get_free_slots', { p_service: serviceId, p_branch: branchId, p_barber: barberId, p_date: date }),
+      ) as {
         starts_at: string
       }[]
       return rows.map((row) => row.starts_at)
@@ -236,9 +243,9 @@ export function createSupabaseApi(db: SupabaseClient): Api {
       await db.auth.signOut()
     },
 
-    async book(serviceId, barberId, startsAt) {
+    async book(serviceId, branchId, barberId, startsAt) {
       return check(
-        await db.rpc('book_appointment', { p_service: serviceId, p_barber: barberId, p_starts_at: startsAt }),
+        await db.rpc('book_appointment', { p_service: serviceId, p_branch: branchId, p_barber: barberId, p_starts_at: startsAt }),
       ) as Booking
     },
 

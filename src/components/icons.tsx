@@ -204,3 +204,10 @@ export const Play = (p: IconProps) => (
     <path d="M8 5.5v13l10.5-6.5z" />
   </Icon>
 )
+
+export const MapPin = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11Z" />
+    <circle cx="12" cy="10" r="2.5" />
+  </Icon>
+)

@@ -184,7 +184,7 @@ describe('queue', () => {
       update public.settings set min_notice_minutes = 1440;
     `)
     const desk = await as(db, shop.desk, () =>
-      rows(db, 'select starts_at::text as t from public.desk_free_slots($1, $2, public.manila_today())', [shop.shave, shop.chairA]),
+      rows(db, 'select starts_at::text as t from public.desk_free_slots($1, null, $2, public.manila_today())', [shop.shave, shop.chairA]),
     )
     expect(await slots(shop.chairA, 0, shop.shave)).toEqual([])
     // the desk still sees the rest of today (empty only in the last minutes before midnight)

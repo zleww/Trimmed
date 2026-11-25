@@ -92,7 +92,7 @@ export function BookingsPage() {
                         <span className="font-medium text-ink">The shop couldn't take this one.</span>
                         {b.reason && ` "${b.reason}"`}
                       </p>
-                      <ButtonLink to={`/book?service=${b.service_id}`} variant="secondary">
+                      <ButtonLink to={`/book?branch=${b.branch_id ?? ''}&service=${b.service_id}`} variant="secondary">
                         Pick another time
                       </ButtonLink>
                     </div>
@@ -105,7 +105,7 @@ export function BookingsPage() {
                   {b.status === 'declined' ? null : changeable(b) ? (
                     <div className="mt-5 flex gap-2 border-t border-glass-line pt-4">
                       <Link
-                        to={`/book?move=${b.id}&service=${b.service_id}&barber=${b.barber_id ?? 'any'}`}
+                        to={`/book?move=${b.id}&branch=${b.branch_id ?? ''}&service=${b.service_id}&barber=${b.barber_id ?? 'any'}`}
                         className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[14px] font-medium text-ink hover:bg-[var(--glass)]"
                       >
                         <Move size={16} />
@@ -196,6 +196,7 @@ function BookingCard({
           </div>
           <p className="num mt-1 text-[14px] text-ink-2">
             {weekday}, {formatTime(booking.starts_at, timeFormat)} · {booking.barber ?? 'Any barber'}
+            {booking.branch && <span className="block">{booking.branch}</span>}
           </p>
           <p className="num mt-1 text-[14px] text-ink-2">
             {peso(booking.price_centavos)} · Code <span className="font-medium tracking-wider text-ink">{booking.code}</span>
