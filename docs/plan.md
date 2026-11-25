@@ -134,3 +134,5 @@ Inspired by the structure of a local barbershop's booking site (rules, then date
 - Every migration applied and checked on the live project.
 - Data Privacy Act review (a lawyer or the school). Written agreement with the owner.
 - A trial run alongside the shop's current way of booking.
+- Hosting plan: Vercel's free Hobby plan is for non-commercial use only. Move to a paid plan (check the current price) before the shop uses it or anyone is paid for it.
+- Supabase Auth URL Configuration: Site URL is the real domain, and the redirect list has only our own addresses.
