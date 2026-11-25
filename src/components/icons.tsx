@@ -211,3 +211,23 @@ export const MapPin = (p: IconProps) => (
     <circle cx="12" cy="10" r="2.5" />
   </Icon>
 )
+export const Menu = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 8h16M4 16h10" />
+  </Icon>
+)
+export const Plus = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </Icon>
+)
+export const Phone = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5 4h3.5l1.5 4-2.2 1.4a11 11 0 0 0 6.8 6.8L16 14l4 1.5V19a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
+  </Icon>
+)
+export const ArrowUpRight = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M7 17 17 7M8 7h9v9" />
+  </Icon>
+)

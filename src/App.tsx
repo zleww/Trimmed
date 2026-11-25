@@ -14,13 +14,11 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { RequestsPage } from './pages/shop/RequestsPage'
 import { WelcomePage } from './pages/WelcomePage'
-import { ScrollToTop } from './components/ScrollToTop'
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <ScrollToTop />
         <Routes>
           <Route element={<SiteLayout />}>
             <Route index element={<HomePage />} />

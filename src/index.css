@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter/wght.css';
 @import '@fontsource-variable/fraunces/opsz.css';
+@import '@fontsource-variable/fraunces/opsz-italic.css';
 
 /*
   Design tokens. 60-30-10:
@@ -163,4 +164,58 @@ h2 {
   * {
     scroll-behavior: auto !important;
   }
+}
+
+/* ---------- landing page ---------- */
+
+/* small wide-spaced capitals above headings, like a label on a bottle */
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+/* a thin amber line that fades out at both ends */
+.hairline {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent), transparent);
+}
+
+/* big outlined word in the background, barely there */
+.ghost-word {
+  color: transparent;
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--ink) 9%, transparent);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* photos sit a little warmer and darker so the type on top stays readable */
+.photo-warm {
+  filter: saturate(0.85) contrast(1.05) brightness(0.92) sepia(0.12);
+}
+
+/* the gold ring around the hero picture */
+.gold-ring {
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 0 10px color-mix(in srgb, var(--accent) 6%, transparent),
+    0 40px 120px -40px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* while SplitText waits for fonts, keep the heading hidden so it never flashes unstyled */
+.split-pending {
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .split-pending {
+    visibility: visible;
+  }
+}
+
+/* the mobile menu blocks the page behind it */
+html.menu-open {
+  overflow: hidden;
 }

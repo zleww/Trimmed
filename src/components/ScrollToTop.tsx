@@ -1,16 +1,19 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router'
+import { scrollToSection, useLenis } from '../lib/smooth'
 
-// New page: start at the top. A link like /#barbers scrolls to that section instead.
+// New page: start at the top. A link like /#services scrolls to that section instead.
 export function ScrollToTop() {
   const { pathname, hash } = useLocation()
+  const lenis = useLenis()
   useEffect(() => {
     if (hash) {
-      // wait a frame so the section exists after navigation
-      requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-      return
+      // sections fill in as data arrives: wait a moment so we land in the right place
+      const timer = window.setTimeout(() => scrollToSection(lenis, hash.slice(1)), 250)
+      return () => window.clearTimeout(timer)
     }
-    window.scrollTo(0, 0)
-  }, [pathname, hash])
+    if (lenis) lenis.scrollTo(0, { immediate: true })
+    else window.scrollTo(0, 0)
+  }, [pathname, hash, lenis])
   return null
 }
