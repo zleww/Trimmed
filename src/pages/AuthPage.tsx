@@ -72,8 +72,8 @@ function SignInForm() {
 
   async function forgot() {
     setError(null)
-    if (!email.trim()) {
-      setError('Type your email first, then tap "Forgot password" again.')
+    if (!email.trim().includes('@')) {
+      setError('Type your email (not your username) first, then tap "Forgot password" again.')
       return
     }
     setBusy(true)
@@ -99,7 +99,17 @@ function SignInForm() {
   return (
     <form onSubmit={submit} className="space-y-5" noValidate>
       {error && <Notice tone="bad">{error}</Notice>}
-      <Field label="Email" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Field
+        label="Email or username"
+        type="text"
+        autoComplete="username"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
       <PasswordField label="Password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
       <Button type="submit" className="h-12 w-full text-[16px]" loading={busy}>
         Sign in

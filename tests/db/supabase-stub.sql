@@ -3,6 +3,8 @@
 
 create role anon nologin;
 create role authenticated nologin;
+-- the server-only role Edge Functions use with the secret key
+create role service_role nologin bypassrls;
 
 -- Supabase keeps extensions in their own schema
 create schema extensions;

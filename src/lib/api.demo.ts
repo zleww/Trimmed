@@ -204,8 +204,10 @@ export const demoApi: Api = {
     listeners.add(listener)
     return () => listeners.delete(listener)
   },
-  async signIn(email) {
+  async signIn(login) {
     await wait()
+    // a username signs in as the sample customer (the live site finds the email on the server)
+    const email = login.includes('@') ? login : `${login.toLowerCase()}@sample.test`
     setSession({ userId: '00000000-0000-4000-8000-000000000001', email, pending: null })
     return session!
   },

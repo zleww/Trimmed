@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import { Link, NavLink, useLocation } from 'react-router'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../../lib/auth'
 import { gsap, MOTION, ScrollTrigger, useGSAP } from '../../lib/gsap'
 import { scrollToSection, useLenis } from '../../lib/smooth'
@@ -22,7 +22,13 @@ export const SECTIONS = [
  * it pulls in to a frosted-glass pill. On phones the links move into a full-screen menu.
  */
 export function Navbar() {
-  const { session, profile, staffRole } = useAuth()
+  const { session, profile, staffRole, signOut } = useAuth()
+  const navigate = useNavigate()
+  // staff have no customer account page, so they sign out from the header
+  const leave = () => {
+    setOpen(false)
+    void signOut().then(() => navigate('/', { replace: true }))
+  }
   const { pathname } = useLocation()
   const lenis = useLenis()
   const onHome = pathname === '/'
@@ -121,7 +127,11 @@ export function Navbar() {
               </span>
             </Link>
           )}
-          {session ? (
+          {session && staffRole ? (
+            <button type="button" onClick={leave} className={buttonClass('ghost', 'min-h-10 px-4 text-[14px] max-sm:hidden')}>
+              Sign out
+            </button>
+          ) : session ? (
             <NavLink to="/account" aria-label="My account" className="flex size-11 items-center justify-center rounded-full transition hover:bg-[var(--glass)]">
               <Avatar name={profile?.full_name ?? session.email} url={profile?.avatar_url} size={34} />
             </NavLink>
@@ -180,6 +190,13 @@ export function Navbar() {
               </div>
             ))}
           </nav>
+          {session && staffRole && (
+            <div className="mb-3 overflow-hidden">
+              <button data-menu-item type="button" onClick={leave} className={buttonClass('secondary', 'h-13 w-full text-[16px]')}>
+                Sign out
+              </button>
+            </div>
+          )}
           {!session && (
             <div className="mb-3 overflow-hidden">
               <Link data-menu-item to="/signin" onClick={() => setOpen(false)} className={buttonClass('secondary', 'h-13 w-full text-[16px]')}>

@@ -134,8 +134,32 @@ export function createSupabaseApi(db: SupabaseClient): Api {
       return () => data.subscription.unsubscribe()
     },
 
-    async signIn(email, password) {
-      const { data, error } = await db.auth.signInWithPassword({ email, password })
+    async signIn(login, password) {
+      // an email signs in directly, as before
+      if (login.includes('@')) {
+        const { data, error } = await db.auth.signInWithPassword({ email: login, password })
+        if (error) throw friendly(error)
+        const session = toSession(data.user)
+        if (!session) throw new Error('Something went wrong. Please try again.')
+        return session
+      }
+      // a username goes through the "username-sign-in" Edge Function, which finds the email
+      // on the server (it never comes back to the browser) and returns the sign-in tokens
+      let answer: { access_token?: string; refresh_token?: string; error?: string }
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/username-sign-in`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '' },
+          body: JSON.stringify({ username: login, password }),
+        })
+        answer = await response.json().catch(() => ({ error: 'Sign-in is not working right now. Try your email instead.' }))
+      } catch {
+        throw new Error("Can't reach the server. Check your connection.")
+      }
+      if (!answer.access_token || !answer.refresh_token) {
+        throw new Error(answer.error ?? 'Sign-in is not working right now. Try your email instead.')
+      }
+      const { data, error } = await db.auth.setSession({ access_token: answer.access_token, refresh_token: answer.refresh_token })
       if (error) throw friendly(error)
       const session = toSession(data.user)
       if (!session) throw new Error('Something went wrong. Please try again.')

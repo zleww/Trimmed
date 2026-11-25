@@ -165,7 +165,8 @@ export type Api = {
   // account
   getSession(): Promise<Session | null>
   onSessionChange(listener: (session: Session | null) => void): () => void
-  signIn(email: string, password: string): Promise<Session>
+  /** with an email, or a customer's username */
+  signIn(login: string, password: string): Promise<Session>
   /** Returns needsConfirm = true when the account must click the email link first. */
   signUp(email: string, password: string, details: SignupDetails): Promise<{ needsConfirm: boolean }>
   /** True when nobody else has this username (and it has the right shape). */
