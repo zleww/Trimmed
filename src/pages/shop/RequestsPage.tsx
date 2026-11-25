@@ -9,6 +9,7 @@ import { formatDayLong, formatTime, manilaDateOf, relativeDay } from '../../lib/
 import { errorMessage, peso, prettyMobile } from '../../lib/format'
 import type { BookingRequest } from '../../lib/types'
 import { useLoad } from '../../lib/useLoad'
+import { ContactInbox } from './ContactInbox'
 
 // Quick reasons the desk can tap instead of typing. The customer sees the reason.
 const REASONS = ['That time is no longer available.', 'The barber is not available then.', 'The shop is closed that day.']
@@ -39,7 +40,12 @@ export function RequestsPage() {
       </div>
     )
   }
-  return <Requests />
+  return (
+    <>
+      <Requests />
+      <ContactInbox />
+    </>
+  )
 }
 
 function Requests() {

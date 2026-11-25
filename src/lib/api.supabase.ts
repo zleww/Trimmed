@@ -1,5 +1,5 @@
 import type { AuthError, PostgrestError, SupabaseClient } from '@supabase/supabase-js'
-import type { Api, Barber, BarberReviews, Branch, Booking, BookingRequest, Inspo, Profile, Rating, Session, SignupDetails, StaffRole } from './types'
+import type { Api, Barber, BarberReviews, Branch, BranchReviews, Booking, BookingRequest, ContactMessage, Inspo, Profile, Rating, Session, SignupDetails, StaffRole } from './types'
 
 // Turns database and sign-in errors into plain sentences.
 // Our own database functions already raise plain messages (code P0001), so
@@ -92,7 +92,7 @@ export function createSupabaseApi(db: SupabaseClient): Api {
     },
 
     async listBranches() {
-      const rows = check(await db.from('branches').select('id, name, address, phone').eq('active', true).order('sort').order('name'))
+      const rows = check(await db.from('branches').select('id, name, address, phone, description').eq('active', true).order('sort').order('name'))
       return (rows ?? []) as Branch[]
     },
 
@@ -280,6 +280,45 @@ export function createSupabaseApi(db: SupabaseClient): Api {
 
     async removeMyReview(barberId) {
       return check(await db.rpc('remove_my_review', { p_barber: barberId })) as BarberReviews
+    },
+
+    async branchRatings() {
+      const rows = check(await db.rpc('branch_ratings')) as { branch_id: string; average: number | null; reviews: number }[]
+      const out: Record<string, Rating> = {}
+      for (const row of rows) out[row.branch_id] = { average: row.average === null ? null : Number(row.average), reviews: row.reviews }
+      return out
+    },
+
+    async branchReviews(branchId) {
+      return check(await db.rpc('branch_reviews', { p_branch: branchId })) as BranchReviews
+    },
+
+    async reviewBranch(branchId, rating, comment) {
+      return check(await db.rpc('review_branch', { p_branch: branchId, p_rating: rating, p_comment: comment })) as BranchReviews
+    },
+
+    async removeMyBranchReview(branchId) {
+      return check(await db.rpc('remove_my_branch_review', { p_branch: branchId })) as BranchReviews
+    },
+
+    async sendContactMessage(form) {
+      check(
+        await db.rpc('send_contact_message', {
+          p_email: form.email || null,
+          p_mobile: form.mobile || null,
+          p_note: form.note,
+          p_branch: form.branchId,
+          p_consent: form.consent,
+        }),
+      )
+    },
+
+    async contactMessages() {
+      return check(await db.rpc('contact_messages')) as ContactMessage[]
+    },
+
+    async markContactMessage(id, read) {
+      check(await db.rpc('mark_contact_message', { p_id: id, p_read: read }))
     },
 
     async myStaffRole() {

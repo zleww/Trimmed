@@ -14,6 +14,8 @@ export type Branch = {
   name: string
   address: string | null
   phone: string | null
+  /** a few lines the owner writes about this location */
+  description: string | null
 }
 
 export type Barber = {
@@ -117,6 +119,23 @@ export type Review = {
 
 export type BarberReviews = { reviews: Review[]; can_review: boolean }
 
+/** Same shape for a branch: the newest reviews and whether you may write one. */
+export type BranchReviews = BarberReviews
+
+/** A note sent from the contact form, as the owner or front desk sees it. */
+export type ContactMessage = {
+  id: string
+  branch_id: string | null
+  branch: string | null
+  email: string | null
+  mobile: string | null
+  note: string
+  created_at: string
+  read: boolean
+}
+
+export type ContactForm = { email: string; mobile: string; note: string; branchId: string | null; consent: boolean }
+
 /** A photo or short video the customer added to a booking for the barber. */
 export type Inspo = { id: string; kind: 'image' | 'video'; url: string | null }
 
@@ -167,6 +186,15 @@ export type Api = {
   barberReviews(barberId: string): Promise<BarberReviews>
   reviewBarber(barberId: string, rating: number, comment: string): Promise<BarberReviews>
   removeMyReview(barberId: string): Promise<BarberReviews>
+  branchRatings(): Promise<Record<string, Rating>>
+  branchReviews(branchId: string): Promise<BranchReviews>
+  reviewBranch(branchId: string, rating: number, comment: string): Promise<BranchReviews>
+  removeMyBranchReview(branchId: string): Promise<BranchReviews>
+
+  // contact form: anyone sends, owner and front desk read
+  sendContactMessage(form: ContactForm): Promise<void>
+  contactMessages(): Promise<ContactMessage[]>
+  markContactMessage(id: string, read: boolean): Promise<void>
 
   // shop (owner and front desk)
   /** null for customers and anyone who isn't active staff */

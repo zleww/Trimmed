@@ -49,8 +49,8 @@ describe('signed-out visitors', () => {
       order by 1`)
     expect(callable.map((r) => r.proname)).toEqual([
       // get_free_slots twice: with a branch, and the older call without one
-      'barber_ratings', 'barber_reviews', 'booking_rules', 'get_free_slots', 'get_free_slots', 'manila_at', 'manila_date', 'manila_today',
-      'public_shop_hours', 'username_available',
+      'barber_ratings', 'barber_reviews', 'booking_rules', 'branch_ratings', 'branch_reviews', 'get_free_slots', 'get_free_slots',
+      'manila_at', 'manila_date', 'manila_today', 'public_shop_hours', 'send_contact_message', 'username_available',
     ])
   })
 

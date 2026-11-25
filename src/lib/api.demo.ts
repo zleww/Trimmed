@@ -1,5 +1,5 @@
 import { manilaDateOf, manilaToday, manilaWallClock, addDays } from './dates'
-import type { Api, Barber, BarberReviews, Booking, Branch, BookingRequest, BookingRules, Inspo, OpeningHours, Profile, Review, Service, Session, StaffRole } from './types'
+import type { Api, Barber, BarberReviews, Booking, Branch, BookingRequest, BookingRules, BranchReviews, ContactMessage, Inspo, OpeningHours, Profile, Review, Service, Session, StaffRole } from './types'
 
 // Sample data for working on the screens without a database.
 // Development only: api.ts never loads this file in a production build.
@@ -15,8 +15,14 @@ const services: Service[] = [
 
 // two made-up branches, so the location step can be tried
 const branches: Branch[] = [
-  { id: 'br1', name: 'Sample Branch One', address: '123 Sample Street, Sample City', phone: '0917 000 0001' },
-  { id: 'br2', name: 'Sample Branch Two', address: '45 Example Avenue, Sample City', phone: null },
+  {
+    id: 'br1',
+    name: 'Sample Branch One',
+    address: '123 Sample Street, Sample City',
+    phone: '0917 000 0001',
+    description: 'Sample text: the first shop, three chairs by the window, open early for the work crowd.',
+  },
+  { id: 'br2', name: 'Sample Branch Two', address: '45 Example Avenue, Sample City', phone: null, description: null },
 ]
 
 const barbers: Barber[] = [
@@ -50,6 +56,25 @@ const reviews: (Review & { barberId: string })[] = [
   { id: 'r2', barberId: 'b1', rating: 4, comment: 'Good cut. Slightly late start.', created_at: '2026-10-21T09:30:00Z', edited: false, username: 'jm_sample', mine: false },
   { id: 'r3', barberId: 'b2', rating: 5, comment: null, created_at: '2026-11-10T03:00:00Z', edited: false, username: 'cutclient', mine: false },
 ]
+
+// made-up branch reviews for the Branches section
+const branchReviewList: (Review & { branchId: string })[] = [
+  { id: 'br-r1', branchId: 'br1', rating: 5, comment: 'Sample review: clean place, easy parking.', created_at: '2026-11-12T05:00:00Z', edited: false, username: 'sample.fan', mine: false },
+  { id: 'br-r2', branchId: 'br1', rating: 4, comment: 'Sample review: busy on Saturdays, book ahead.', created_at: '2026-11-03T08:00:00Z', edited: false, username: 'jm_sample', mine: false },
+]
+
+function branchReviewsFor(branchId: string): BranchReviews {
+  return {
+    reviews: branchReviewList
+      .filter((r) => r.branchId === branchId)
+      .map(({ branchId: _branch, ...r }) => ({ ...r, mine: r.username !== null && r.username === profile?.username }))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    // like barber reviews: in the sample data a visit is pretended once you have a profile
+    can_review: Boolean(profile),
+  }
+}
+
+const contactInbox: ContactMessage[] = []
 
 function reviewsFor(barberId: string): BarberReviews {
   return {
@@ -341,6 +366,72 @@ export const demoApi: Api = {
     const index = reviews.findIndex((r) => r.barberId === barberId && r.username === profile?.username)
     if (index >= 0) reviews.splice(index, 1)
     return reviewsFor(barberId)
+  },
+
+  async branchRatings() {
+    await wait(150)
+    const out: Record<string, { average: number | null; reviews: number }> = {}
+    for (const b of branches) {
+      const list = branchReviewList.filter((r) => r.branchId === b.id)
+      const total = list.reduce((sum, r) => sum + r.rating, 0)
+      out[b.id] = { average: list.length ? Math.round((total / list.length) * 10) / 10 : null, reviews: list.length }
+    }
+    return out
+  },
+  async branchReviews(branchId) {
+    await wait()
+    return branchReviewsFor(branchId)
+  },
+  async reviewBranch(branchId, rating, comment) {
+    await wait()
+    const me = needProfile()
+    const text = comment.trim() || null
+    const existing = branchReviewList.find((r) => r.branchId === branchId && r.username === me.username)
+    if (existing) Object.assign(existing, { rating, comment: text, edited: true })
+    else {
+      branchReviewList.push({ id: crypto.randomUUID(), branchId, rating, comment: text, created_at: new Date().toISOString(), edited: false, username: me.username, mine: true })
+    }
+    return branchReviewsFor(branchId)
+  },
+  async removeMyBranchReview(branchId) {
+    await wait()
+    const index = branchReviewList.findIndex((r) => r.branchId === branchId && r.username === profile?.username)
+    if (index >= 0) branchReviewList.splice(index, 1)
+    return branchReviewsFor(branchId)
+  },
+
+  async sendContactMessage(form) {
+    await wait()
+    // the same checks the database makes, so the form's errors can be tried here
+    if (!form.consent) throw new Error('Please agree to let us use your details to reply')
+    const email = form.email.trim().toLowerCase()
+    const mobile = form.mobile.replace(/\D/g, '')
+    if (!email && !mobile) throw new Error('Leave an email or a mobile number so we can reply')
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Enter a valid email address')
+    if (mobile && !/^09\d{9}$/.test(mobile)) throw new Error('Enter a mobile number like 09171234567')
+    if (form.note.trim().length < 5) throw new Error('Write a short note (at least 5 characters)')
+    contactInbox.unshift({
+      id: crypto.randomUUID(),
+      branch_id: form.branchId,
+      branch: branches.find((b) => b.id === form.branchId)?.name ?? null,
+      email: email || null,
+      mobile: mobile || null,
+      note: form.note.trim(),
+      created_at: new Date().toISOString(),
+      read: false,
+    })
+  },
+  async contactMessages() {
+    await wait()
+    needDesk()
+    return contactInbox.map((m) => ({ ...m }))
+  },
+  async markContactMessage(id, read) {
+    await wait(100)
+    needDesk()
+    const message = contactInbox.find((m) => m.id === id)
+    if (!message) throw new Error('Message not found')
+    message.read = read
   },
 
   async myStaffRole() {

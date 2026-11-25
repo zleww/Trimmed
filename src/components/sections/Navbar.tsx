@@ -13,6 +13,7 @@ export const SECTIONS = [
   { id: 'about', label: 'About' },
   { id: 'products', label: 'Products' },
   { id: 'services', label: 'Services' },
+  { id: 'branches', label: 'Branches' },
   { id: 'contact', label: 'Contact' },
 ] as const
 
