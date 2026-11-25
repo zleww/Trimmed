@@ -1,5 +1,5 @@
 import { manilaDateOf, manilaToday, manilaWallClock, addDays } from './dates'
-import type { Api, Barber, BarberReviews, Booking, BookingRules, Inspo, OpeningHours, Profile, Review, Service, Session } from './types'
+import type { Api, Barber, BarberReviews, Booking, BookingRequest, BookingRules, Inspo, OpeningHours, Profile, Review, Service, Session, StaffRole } from './types'
 
 // Sample data for working on the screens without a database.
 // Development only: api.ts never loads this file in a production build.
@@ -62,7 +62,7 @@ function isFree(barberId: string, start: Date, end: Date): boolean {
   return !bookings.some(
     (b) =>
       b.barber_id === barberId &&
-      ['booked', 'checked_in', 'in_chair', 'done'].includes(b.status) &&
+      ['requested', 'booked', 'checked_in', 'in_chair', 'done'].includes(b.status) &&
       new Date(b.starts_at) < end &&
       new Date(b.ends_at) > start,
   )
@@ -90,6 +90,26 @@ function slotsFor(serviceId: string, barberId: string | null, date: string): str
     if (candidates.some((id) => isFree(id, start, end) && !sampleBusy(id, start))) out.push(start.toISOString())
   }
   return out
+}
+
+// In the sample data, signing in with an email that starts with "owner@" or "desk@"
+// makes you staff, so the shop screens can be tried.
+function demoRole(): StaffRole | null {
+  const email = session?.email ?? ''
+  return email.startsWith('owner@') ? 'owner' : email.startsWith('desk@') ? 'desk' : null
+}
+
+function needDesk() {
+  const role = demoRole()
+  if (role !== 'owner' && role !== 'desk') throw new Error('Not allowed')
+}
+
+function waiting(id: string): Booking {
+  needDesk()
+  const booking = bookings.find((b) => b.id === id)
+  if (!booking) throw new Error('Request not found')
+  if (booking.status !== 'requested') throw new Error('This request was already answered or cancelled')
+  return booking
 }
 
 function needProfile(): Profile {
@@ -229,7 +249,7 @@ export const demoApi: Api = {
       code: Math.random().toString(16).slice(2, 10).toUpperCase(),
       starts_at: startsAt,
       ends_at: end.toISOString(),
-      status: 'booked' as const,
+      status: 'requested' as const,
       service_id: service.id,
       service: service.name,
       barber: barbers.find((b) => b.id === chosen)!.display_name,
@@ -294,6 +314,45 @@ export const demoApi: Api = {
     const index = reviews.findIndex((r) => r.barberId === barberId && r.username === profile?.username)
     if (index >= 0) reviews.splice(index, 1)
     return reviewsFor(barberId)
+  },
+
+  async myStaffRole() {
+    return demoRole()
+  },
+  async bookingRequests(): Promise<BookingRequest[]> {
+    await wait()
+    needDesk()
+    return bookings
+      .filter((b) => b.status === 'requested' && new Date(b.starts_at).getTime() > Date.now())
+      .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+      .map((b) => ({
+        id: b.id,
+        code: b.code,
+        starts_at: b.starts_at,
+        ends_at: b.ends_at,
+        service: b.service,
+        price_centavos: b.price_centavos,
+        barber_id: b.barber_id,
+        barber: b.barber,
+        customer: profile?.full_name ?? 'Sample Customer',
+        username: profile?.username ?? null,
+        mobile: profile?.mobile ?? '09171234567',
+        requested_at: new Date().toISOString(),
+        visits: 2,
+        no_shows: 0,
+        inspo: [...inspo.values()].filter((i) => i.bookingId === b.id).length,
+      }))
+  },
+  async confirmBooking(id) {
+    await wait()
+    waiting(id).status = 'booked'
+  },
+  async declineBooking(id, reason) {
+    await wait()
+    if (reason.trim().length < 3) throw new Error('Give the customer a short reason (3 to 200 characters)')
+    const booking = waiting(id)
+    booking.status = 'declined'
+    booking.reason = reason.trim()
   },
 
   async listInspo(bookingId) {

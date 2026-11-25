@@ -114,9 +114,16 @@ export async function addCustomer(db: PGlite, name: string, mobile: string): Pro
   return login
 }
 
-/** Book as a customer and return the booking summary. */
-export async function book(db: PGlite, login: string, service: string, barber: string | null, startsAt: string): Promise<Row> {
+/** Ask for a booking as a customer. It waits as "requested" until the shop answers. */
+export async function request(db: PGlite, login: string, service: string, barber: string | null, startsAt: string): Promise<Row> {
   return as(db, login, () => value(db, 'select public.book_appointment($1, $2, $3) as r', [service, barber, startsAt]))
+}
+
+/** Ask for a booking and have the shop confirm it right away (what most tests need). */
+export async function book(db: PGlite, login: string, service: string, barber: string | null, startsAt: string): Promise<Row> {
+  const asked = await request(db, login, service, barber, startsAt)
+  await db.query("update public.appointments set status = 'booked', confirmed_at = now() where id = $1", [asked.id])
+  return { ...asked, status: 'booked' }
 }
 
 /** A walk-in, put in a barber's chair right away (barber A unless given), ready to pay. */

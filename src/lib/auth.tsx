@@ -2,13 +2,15 @@ import type { ReactNode } from 'react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { applyTheme } from './theme'
-import type { Profile, Session, SignupDetails } from './types'
+import type { Profile, Session, SignupDetails, StaffRole } from './types'
 
 type AuthValue = {
   /** undefined while checking the saved session, null when signed out */
   session: Session | null | undefined
   /** undefined while loading, null when the account has no profile yet */
   profile: Profile | null | undefined
+  /** undefined while loading, null for customers */
+  staffRole: StaffRole | null | undefined
   setProfile: (profile: Profile) => void
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, details: SignupDetails) => Promise<{ needsConfirm: boolean }>
@@ -21,6 +23,7 @@ const AuthContext = createContext<AuthValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [profile, setProfileState] = useState<Profile | null | undefined>(undefined)
+  const [staffRole, setStaffRole] = useState<StaffRole | null | undefined>(undefined)
 
   useEffect(() => {
     api
@@ -44,10 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (session === undefined) return
     if (!userId) {
       setProfileState(null)
+      setStaffRole(null)
       return
     }
     let current = true
     setProfileState(undefined)
+    setStaffRole(undefined)
     api
       .myProfile()
       .then((loaded) => {
@@ -56,6 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (loaded) applyTheme(loaded.theme)
       })
       .catch(() => current && setProfileState(null))
+    // staff (owner, desk, barber) get the shop screens
+    api
+      .myStaffRole()
+      .then((role) => current && setStaffRole(role))
+      .catch(() => current && setStaffRole(null))
     return () => {
       current = false
     }
@@ -72,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       profile,
+      staffRole,
       setProfile,
       signIn: async (email, password) => setSession(await api.signIn(email, password)),
       signUp: (email, password, details) => api.signUp(email, password, details),
@@ -80,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null)
       },
     }),
-    [session, profile, setProfile],
+    [session, profile, staffRole, setProfile],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -13,16 +13,17 @@ export function safeNext(value: string | null): string {
 }
 
 export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
-  const { session, profile } = useAuth()
+  const { session, profile, staffRole } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const next = safeNext(params.get('next'))
 
-  // signed in: go on, through the profile step if it isn't done
+  // signed in: staff go to the shop screens; customers go on, through the profile step if it isn't done
   useEffect(() => {
-    if (!session || profile === undefined) return
-    navigate(profile ? next : `/welcome?next=${encodeURIComponent(next)}`, { replace: true })
-  }, [session, profile, next, navigate])
+    if (!session || profile === undefined || staffRole === undefined) return
+    if (staffRole) navigate(params.get('next') ? next : '/shop', { replace: true })
+    else navigate(profile ? next : `/welcome?next=${encodeURIComponent(next)}`, { replace: true })
+  }, [session, profile, staffRole, next, params, navigate])
 
   const other = mode === 'signin' ? 'signup' : 'signin'
   const otherLink = `/${other}${params.get('next') ? `?next=${encodeURIComponent(next)}` : ''}`

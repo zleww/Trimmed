@@ -10,7 +10,7 @@ import { errorMessage, peso } from '../../lib/format'
 import type { Booking } from '../../lib/types'
 import { useLoad } from '../../lib/useLoad'
 
-const ACTIVE = ['booked', 'checked_in', 'in_chair']
+const ACTIVE = ['requested', 'booked', 'checked_in', 'in_chair']
 
 export function BookingsPage() {
   const { profile } = useAuth()
@@ -23,21 +23,25 @@ export function BookingsPage() {
 
   // the time when the page opened, so the list doesn't shift while you read it
   const [now] = useState(() => Date.now())
+  // waiting, confirmed and in progress, plus any declined ones still ahead, so the customer sees the answer
   const upcoming = (bookings.data ?? [])
-    .filter((b) => ACTIVE.includes(b.status) && new Date(b.ends_at).getTime() > now)
+    .filter((b) => (ACTIVE.includes(b.status) || b.status === 'declined') && new Date(b.ends_at).getTime() > now)
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
   const past = (bookings.data ?? []).filter((b) => !upcoming.includes(b))
 
   // matches the database rule, so we don't offer a button that would be refused
   const cutoff = (rules.data?.cancel_cutoff_minutes ?? 120) * 60000
-  const changeable = (b: Booking) => b.status === 'booked' && new Date(b.starts_at).getTime() - now >= cutoff
+  // a waiting request can change any time before it starts; a confirmed one only before the cut-off
+  const changeable = (b: Booking) =>
+    (b.status === 'requested' && new Date(b.starts_at).getTime() > now) ||
+    (b.status === 'booked' && new Date(b.starts_at).getTime() - now >= cutoff)
 
   async function cancel() {
     if (!cancelling) return
     setBusy(true)
     try {
       await api.cancelBooking(cancelling.id)
-      setMessage({ tone: 'good', text: 'Booking cancelled. The time is free for someone else now.' })
+      setMessage({ tone: 'good', text: cancelling.status === 'requested' ? 'Request cancelled.' : 'Booking cancelled. The time is free for someone else now.' })
       bookings.reload()
     } catch (reason) {
       setMessage({ tone: 'bad', text: errorMessage(reason) })
@@ -79,8 +83,26 @@ export function BookingsPage() {
             {upcoming.map((b) => (
               <li key={b.id}>
                 <BookingCard booking={b} timeFormat={timeFormat}>
-                  <BookingInspo bookingId={b.id} editable={b.status === 'booked' && new Date(b.starts_at).getTime() > now} />
-                  {changeable(b) ? (
+                  {b.status === 'requested' && (
+                    <p className="mt-4 text-[13px] leading-relaxed text-ink-2">Your time is held. The shop will confirm it soon.</p>
+                  )}
+                  {b.status === 'declined' ? (
+                    <div className="mt-4 space-y-3 border-t border-glass-line pt-4">
+                      <p className="text-[14px] leading-relaxed text-ink-2">
+                        <span className="font-medium text-ink">The shop couldn't take this one.</span>
+                        {b.reason && ` "${b.reason}"`}
+                      </p>
+                      <ButtonLink to={`/book?service=${b.service_id}`} variant="secondary">
+                        Pick another time
+                      </ButtonLink>
+                    </div>
+                  ) : (
+                    <BookingInspo
+                      bookingId={b.id}
+                      editable={(b.status === 'booked' || b.status === 'requested') && new Date(b.starts_at).getTime() > now}
+                    />
+                  )}
+                  {b.status === 'declined' ? null : changeable(b) ? (
                     <div className="mt-5 flex gap-2 border-t border-glass-line pt-4">
                       <Link
                         to={`/book?move=${b.id}&service=${b.service_id}&barber=${b.barber_id ?? 'any'}`}
@@ -116,14 +138,17 @@ export function BookingsPage() {
           <ul className="mt-4 space-y-3">
             {past.map((b) => (
               <li key={b.id}>
-                <BookingCard booking={b} timeFormat={timeFormat} muted />
+                <BookingCard booking={b} timeFormat={timeFormat} muted>
+                  {b.status === 'requested' && <p className="mt-3 text-[13px] text-ink-3">The shop didn't confirm this one in time.</p>}
+                  {b.status === 'declined' && b.reason && <p className="mt-3 text-[13px] text-ink-3">Declined: "{b.reason}"</p>}
+                </BookingCard>
               </li>
             ))}
           </ul>
         </section>
       )}
 
-      <Dialog open={cancelling !== null} title="Cancel this booking?" onClose={() => setCancelling(null)}>
+      <Dialog open={cancelling !== null} title={cancelling?.status === 'requested' ? 'Cancel this request?' : 'Cancel this booking?'} onClose={() => setCancelling(null)}>
         <p className="text-[15px] text-ink-2">
           {cancelling &&
             `${cancelling.service}, ${new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', weekday: 'long', month: 'short', day: 'numeric' }).format(new Date(cancelling.starts_at))} at ${formatTime(cancelling.starts_at, timeFormat)}.`}

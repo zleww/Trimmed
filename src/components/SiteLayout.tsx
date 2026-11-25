@@ -41,7 +41,7 @@ const navItems = [
 ]
 
 export function SiteLayout() {
-  const { session, profile } = useAuth()
+  const { session, profile, staffRole } = useAuth()
   const { pathname } = useLocation()
   const onBooking = pathname.startsWith('/book')
 
@@ -68,7 +68,15 @@ export function SiteLayout() {
           </nav>
 
           <div className="flex items-center gap-2">
-            {!onBooking && (
+            {(staffRole === 'owner' || staffRole === 'desk') && (
+              <NavLink
+                to="/shop"
+                className={({ isActive }) => buttonClass(isActive ? 'secondary' : 'ghost', 'min-h-10 px-4 text-[14px]')}
+              >
+                Shop
+              </NavLink>
+            )}
+            {!onBooking && !staffRole && (
               <Link to="/book" className={buttonClass('secondary', 'min-h-10 px-4 text-[14px]')}>
                 Book
               </Link>

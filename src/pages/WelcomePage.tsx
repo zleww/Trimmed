@@ -11,7 +11,7 @@ import { safeNext } from './AuthPage'
 // profile is made right away. The form below only shows when something is
 // missing (an older account) or the username was taken in the meantime.
 export function WelcomePage() {
-  const { session, profile, setProfile } = useAuth()
+  const { session, profile, staffRole, setProfile } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const next = safeNext(params.get('next'))
@@ -26,14 +26,15 @@ export function WelcomePage() {
   const [showForm, setShowForm] = useState(!pending)
   const tried = useRef(false)
 
-  // already has a profile: nothing to do here
+  // already has a profile, or is staff: nothing to do here
   useEffect(() => {
-    if (profile) navigate(next, { replace: true })
-  }, [profile, next, navigate])
+    if (staffRole) navigate('/shop', { replace: true })
+    else if (profile) navigate(next, { replace: true })
+  }, [profile, staffRole, next, navigate])
 
   // they ticked the privacy box on the sign-up form, so finish with what they typed there
   useEffect(() => {
-    if (!pending || profile !== null || tried.current) return
+    if (!pending || profile !== null || staffRole !== null || tried.current) return
     tried.current = true
     api
       .saveProfile(pending.username, pending.full_name, pending.mobile, true)
@@ -47,7 +48,7 @@ export function WelcomePage() {
         setConsent(true)
         setShowForm(true)
       })
-  }, [pending, profile, setProfile])
+  }, [pending, profile, staffRole, setProfile])
 
   if (session === null) return <Navigate to={`/signin?next=${encodeURIComponent(`/welcome?next=${next}`)}`} replace />
   if (session === undefined || profile === undefined || !showForm) {

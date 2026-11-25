@@ -12,6 +12,7 @@ import { BarberPage } from './pages/BarberPage'
 import { NewPasswordPage } from './pages/NewPasswordPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PrivacyPage } from './pages/PrivacyPage'
+import { RequestsPage } from './pages/shop/RequestsPage'
 import { WelcomePage } from './pages/WelcomePage'
 import { ScrollToTop } from './components/ScrollToTop'
 
@@ -36,6 +37,8 @@ export default function App() {
               <Route path="profile" element={<ProfilePage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
+            {/* staff only: the page itself checks the role, and the database checks again */}
+            <Route path="shop" element={<RequestsPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>

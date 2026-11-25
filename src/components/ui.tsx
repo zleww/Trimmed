@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Link, type LinkProps } from 'react-router'
 import { initials } from '../lib/format'
 import type { BookingStatus } from '../lib/types'
-import { Alert, Ban, Calendar, CheckCircle, Clock, Eye, EyeOff, Info, Scissors, User } from './icons'
+import { Alert, Ban, CheckCircle, Clock, Eye, EyeOff, Info, Scissors, User } from './icons'
 
 // ---------------------------------------------------------------------------
 // Buttons
@@ -253,7 +253,9 @@ export function Avatar({ name, url, size = 40 }: { name: string; url?: string | 
 
 // status is always icon + text + color, never color alone
 const statusLook: Record<BookingStatus, { label: string; className: string; Icon: typeof Clock }> = {
-  booked: { label: 'Booked', className: 'text-good bg-good-bg', Icon: Calendar },
+  requested: { label: 'Waiting for the shop', className: 'text-warn bg-warn-bg', Icon: Clock },
+  declined: { label: 'Declined', className: 'text-bad bg-bad-bg', Icon: Ban },
+  booked: { label: 'Confirmed', className: 'text-good bg-good-bg', Icon: CheckCircle },
   checked_in: { label: 'Checked in', className: 'text-good bg-good-bg', Icon: CheckCircle },
   in_chair: { label: 'In the chair', className: 'text-good bg-good-bg', Icon: Scissors },
   done: { label: 'Done', className: 'text-ink-2 bg-[var(--glass)]', Icon: CheckCircle },

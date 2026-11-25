@@ -36,7 +36,7 @@ const STEPS = [
   { title: 'Choose a service', short: 'Service', Icon: Scissors },
   { title: 'Choose a barber', short: 'Barber', Icon: Users },
   { title: 'Pick a time', short: 'Time', Icon: Calendar },
-  { title: 'Check and confirm', short: 'Confirm', Icon: CheckCircle },
+  { title: 'Check and send', short: 'Send', Icon: CheckCircle },
 ]
 
 export function BookPage() {
@@ -154,7 +154,7 @@ export function BookPage() {
   if (done) return <Booked booking={done} timeFormat={timeFormat} moved={Boolean(draft.moveId || params.get('move'))} inspoFailed={inspoFailed} />
 
   const primaryLabel =
-    step < 3 ? 'Continue' : !session ? 'Sign in to confirm' : draft.moveId ? 'Move my booking' : 'Confirm booking'
+    step < 3 ? 'Continue' : !session ? 'Sign in to continue' : draft.moveId ? 'Request new time' : 'Send request'
 
   return (
     <div className="mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 lg:pt-10 lg:pb-20">
@@ -620,11 +620,15 @@ function ReviewStep({
           Before you book
         </h2>
         <ul className="mt-3 space-y-2 text-[14px] leading-relaxed text-ink-2">
+          <li>
+            This is a request. The shop confirms it, and your time is held for you while you wait. You'll see the answer in My
+            bookings.
+          </li>
           <li>You pay at the shop after your service.</li>
           {cutoffMinutes !== undefined && cutoffMinutes > 0 && (
             <li>You can cancel or move it from your account up to {hoursText(cutoffMinutes)} before. After that, please call the shop.</li>
           )}
-          <li>Show your booking code at the desk when you arrive.</li>
+          <li>Once it's confirmed, show your booking code at the desk when you arrive.</li>
         </ul>
       </Glass>
 
@@ -694,11 +698,14 @@ function Booked({ booking, timeFormat, moved, inspoFailed }: { booking: Booking;
   return (
     <div className="mx-auto max-w-lg px-4 py-14 sm:py-20">
       <div className="rise text-center">
-        <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-good-bg text-good">
-          <CheckCircle size={32} />
+        <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-warn-bg text-warn">
+          <Clock size={32} />
         </span>
-        <h1 className="mt-6 text-[30px] font-semibold tracking-tight">{moved ? 'Booking moved' : "You're booked"}</h1>
-        <p className="mt-2 text-[16px] text-ink-2">See you {relativeDay(date) === 'Today' ? 'today' : `on ${formatDayLong(date)}`}.</p>
+        <h1 className="mt-6 text-[30px] font-semibold tracking-tight">{moved ? 'New time requested' : 'Request sent'}</h1>
+        <p className="mt-2 text-[16px] leading-relaxed text-ink-2">
+          Your time on {relativeDay(date) === 'Today' ? 'today' : formatDayLong(date)} is held for you. The shop will confirm it, and
+          you'll see the answer in My bookings.
+        </p>
       </div>
 
       {inspoFailed > 0 && (
@@ -730,7 +737,7 @@ function Booked({ booking, timeFormat, moved, inspoFailed }: { booking: Booking;
 
       <div className="mt-6 flex flex-col gap-3">
         <ButtonLink to="/account" className="h-12">
-          See my bookings
+          See my requests
         </ButtonLink>
         <Link to="/" className="py-2 text-center text-[15px] text-ink-2 hover:text-ink">
           Back to home

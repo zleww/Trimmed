@@ -25,7 +25,8 @@ export type BookingRules = {
   cancel_cutoff_minutes: number
 }
 
-export type BookingStatus = 'booked' | 'checked_in' | 'in_chair' | 'done' | 'cancelled' | 'no_show'
+/** requested = waiting for the shop to confirm; declined = the shop said no (with a reason) */
+export type BookingStatus = 'requested' | 'booked' | 'checked_in' | 'in_chair' | 'done' | 'cancelled' | 'declined' | 'no_show'
 
 export type Booking = {
   id: string
@@ -38,6 +39,29 @@ export type Booking = {
   barber_id: string | null
   barber: string | null
   price_centavos: number
+  /** the shop's reason, when a request was declined */
+  reason?: string | null
+}
+
+export type StaffRole = 'owner' | 'desk' | 'barber'
+
+/** A customer's request as the desk sees it, with what helps to decide. */
+export type BookingRequest = {
+  id: string
+  code: string
+  starts_at: string
+  ends_at: string
+  service: string
+  price_centavos: number
+  barber_id: string | null
+  barber: string | null
+  customer: string
+  username: string | null
+  mobile: string
+  requested_at: string
+  visits: number
+  no_shows: number
+  inspo: number
 }
 
 export type Theme = 'dark' | 'light' | 'system'
@@ -129,6 +153,13 @@ export type Api = {
   barberReviews(barberId: string): Promise<BarberReviews>
   reviewBarber(barberId: string, rating: number, comment: string): Promise<BarberReviews>
   removeMyReview(barberId: string): Promise<BarberReviews>
+
+  // shop (owner and front desk)
+  /** null for customers and anyone who isn't active staff */
+  myStaffRole(): Promise<StaffRole | null>
+  bookingRequests(): Promise<BookingRequest[]>
+  confirmBooking(id: string): Promise<void>
+  declineBooking(id: string, reason: string): Promise<void>
 
   // inspo on a booking
   listInspo(bookingId: string): Promise<Inspo[]>

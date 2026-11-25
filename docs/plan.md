@@ -25,13 +25,16 @@ Trimmed is the prototype name. The real shop's name, logo and customer data stay
 | 2026-11-25 | Sign-up asks for username, display name, email, mobile and password twice. Reviews show the username, never the real name. |
 | 2026-11-25 | Reviews: 1 to 5 stars and an optional comment, only after a finished cut with that barber. One per customer per barber; the owner can hide one with a reason. |
 | 2026-11-25 | Inspo: up to 3 photos or videos (30 s, 25 MB max) per booking, seen only by the customer, the desk, the owner and that booking's barber. |
+| 2026-11-25 | Online bookings are requests. The owner or the desk confirms or declines (with a reason the customer sees). A waiting request holds its time. Desk and walk-in bookings are confirmed straight away. |
+| 2026-11-25 | The shop screens start inside this site at `/shop` (staff only), not as a separate app yet. Can be split later. |
 
 ## 3. Who can do what
 
 | | Signed out | Customer | Barber | Desk | Owner |
 |---|---|---|---|---|---|
 | See services, barbers, free times | yes | yes | yes | yes | yes |
-| Book, cancel, move own booking | | yes | | | |
+| Request a booking; cancel or move own | | yes | | | |
+| Confirm or decline requests | | | | yes | yes |
 | Delete own data | | yes | | | |
 | Read reviews and star ratings | yes | yes | yes | yes | yes |
 | Review a barber (after a cut with them), favourite one | | yes | | | |
@@ -83,11 +86,20 @@ Money is integer centavos. Times are `timestamptz`. "Today" means Asia/Manila.
 - `barber_reviews` table (no direct access), `barber_ratings`, `barber_reviews`, `review_barber`, `remove_my_review`, `hide_review` (owner).
 - `booking_inspo` table and private `inspo` bucket (25 MB, images and mp4/mov/webm). `add_booking_inspo`, `remove_booking_inspo`, `booking_inspo`. Moving a booking keeps its inspo. Deleting your data removes your username, reviews and inspo.
 
+**Migration 7, booking requests** (`20261125000007_booking_requests.sql`)
+- New statuses `requested` and `declined`, plus `confirmed_at` and `confirmed_by`.
+- A request holds its time: the no-double-booking rule and `barber_is_free` count it.
+- `book_appointment` makes a request; `desk_book` and walk-ins stay confirmed.
+- A waiting request can be cancelled or moved any time before it starts; a confirmed booking keeps the cut-off.
+- `booking_requests` (owner and desk: name, number, visits, missed bookings, inspo count), `confirm_booking`, `decline_booking` (reason required, shown to the customer).
+
 **Not built yet**
 - Payroll (waiting on the owner's pay rules and a check of this year's SSS, PhilHealth, Pag-IBIG and tax rates).
 - Owner dashboard and report functions.
 - Edge Functions: `staff-admin` (make staff logins, like Laced) and removing a customer's login after they delete their data.
 - The barber's screen that shows a booking's inspo (comes with the shop app; the database side is done).
+- Telling the customer when a request is answered (email or SMS). For now they see it in My bookings.
+- The rest of the shop app: today's queue, walk-ins, check-in, sales, close the day, owner reports.
 - Clearing old inspo files after the visit (storage is only 1 GB on the free plan).
 
 ## 5. Booking site (built)
@@ -98,6 +110,8 @@ Inspired by the structure of a local barbershop's booking site (rules, then date
 - **Account:** My bookings (upcoming and past, move or cancel inside the cut-off), Profile (photo the customer crops and zooms in a round frame before upload, name, mobile), Settings (theme, time format, favourite barber, promos, change password, sign out, delete my data).
 - **Barber page** (`/barbers/:id`): photo, bio, star rating, reviews, a star to make them your favourite, and "Book with...".
 - **Inspo**: add photos or short videos on the confirm step or later from My bookings.
+- **Requests**: the last step is "Send request". My bookings shows "Waiting for the shop", "Confirmed", or "Declined" with the shop's reason.
+- **Shop** (`/shop`, owner and desk only): booking requests, soonest first, with the customer's number, history and inspo; Confirm, or Decline with a reason. Checks for new requests every minute.
 - **Forgot password**: the email link opens `/new-password` to type the new one (Settings > Change password opens the same page).
 - **Privacy notice** page, linked from the consent line.
 - Phone first: checked at 320, 375 and 390 wide for anything wider than the screen. Grids use `grid-cols-1` on phones so long text can't stretch them.
