@@ -13,6 +13,8 @@ import { ContactInbox } from './ContactInbox'
 
 // Quick reasons the desk can tap instead of typing. The customer sees the reason.
 const REASONS = ['That time is no longer available.', 'The barber is not available then.', 'The shop is closed that day.']
+// when the desk keeps a booking the customer asked to cancel
+const KEEP_REASONS = ['Please call us so we can talk it over.', 'It is too close to your time to cancel online.']
 
 /**
  * The owner and front desk see customers' booking requests and confirm or
@@ -54,6 +56,8 @@ function Requests() {
   const requests = useLoad(() => api.bookingRequests(), [])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [declining, setDeclining] = useState<BookingRequest | null>(null)
+  // a cancel ask the desk is answering with "keep it"
+  const keepingAsk = declining?.kind === 'cancel'
   const [reason, setReason] = useState('')
   const [message, setMessage] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null)
 
@@ -68,8 +72,17 @@ function Requests() {
     setBusyId(request.id)
     setMessage(null)
     try {
-      await api.confirmBooking(request.id)
-      setMessage({ tone: 'good', text: `Confirmed ${request.customer}, ${relativeDay(manilaDateOf(request.starts_at))} at ${formatTime(request.starts_at, timeFormat)}.` })
+      const at = `${relativeDay(manilaDateOf(request.starts_at))} at ${formatTime(request.starts_at, timeFormat)}`
+      if (request.kind === 'cancel') {
+        await api.approveCancel(request.id)
+        setMessage({ tone: 'good', text: `Cancelled ${request.customer}'s booking, ${at}. The seat is free again.` })
+      } else {
+        await api.confirmBooking(request.id)
+        setMessage({
+          tone: 'good',
+          text: request.kind === 'move' ? `Moved ${request.customer} to ${at}. Their old time is free again.` : `Confirmed ${request.customer}, ${at}.`,
+        })
+      }
     } catch (reason) {
       setMessage({ tone: 'bad', text: errorMessage(reason) })
     } finally {
@@ -83,8 +96,16 @@ function Requests() {
     setBusyId(declining.id)
     setMessage(null)
     try {
-      await api.declineBooking(declining.id, reason)
-      setMessage({ tone: 'good', text: `Declined ${declining.customer}'s request. They'll see your reason.` })
+      if (declining.kind === 'cancel') {
+        await api.refuseCancel(declining.id, reason)
+        setMessage({ tone: 'good', text: `Kept ${declining.customer}'s booking. They'll see your reason.` })
+      } else {
+        await api.declineBooking(declining.id, reason)
+        setMessage({
+          tone: 'good',
+          text: declining.kind === 'move' ? `Declined the new time. ${declining.customer}'s booking stays as it was.` : `Declined ${declining.customer}'s request. They'll see your reason.`,
+        })
+      }
       setDeclining(null)
       setReason('')
     } catch (error) {
@@ -130,11 +151,29 @@ function Requests() {
                     </p>
                     <p className="text-[14px] text-ink-2">{formatDayLong(manilaDateOf(r.starts_at))}</p>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-bg px-2.5 py-1 text-[13px] font-medium text-warn">
-                    <Clock size={14} />
-                    Waiting
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-medium ${
+                      r.kind === 'cancel' ? 'bg-bad-bg text-bad' : 'bg-warn-bg text-warn'
+                    }`}
+                  >
+                    {r.kind === 'cancel' ? <Ban size={14} /> : <Clock size={14} />}
+                    {r.kind === 'cancel' ? 'Wants to cancel' : r.kind === 'move' ? 'New time asked' : 'New booking'}
                   </span>
                 </div>
+                {r.kind === 'move' && r.replaces_starts_at && (
+                  <p className="mt-3 rounded-2xl bg-raised px-4 py-2.5 text-[14px] text-ink-2">
+                    Moving from{' '}
+                    <span className="num font-medium text-ink">
+                      {relativeDay(manilaDateOf(r.replaces_starts_at))}, {formatTime(r.replaces_starts_at, timeFormat)}
+                    </span>
+                    . That booking stays until you confirm.
+                  </p>
+                )}
+                {r.kind === 'cancel' && (
+                  <p className="mt-3 rounded-2xl bg-raised px-4 py-2.5 text-[14px] text-ink-2">
+                    A confirmed booking. Cancel frees the seat; keep it to say no (they'll see your reason).
+                  </p>
+                )}
 
                 <dl className="mt-4 grid grid-cols-1 gap-3 text-[15px] sm:grid-cols-2">
                   <Line Icon={User} label="Customer">
@@ -178,11 +217,11 @@ function Requests() {
                     }}
                   >
                     <Ban size={18} />
-                    Decline
+                    {r.kind === 'cancel' ? 'Keep booking' : 'Decline'}
                   </Button>
                   <Button loading={busyId === r.id && !declining} disabled={busyId !== null} onClick={() => confirm(r)}>
                     <CheckCircle size={18} />
-                    Confirm
+                    {r.kind === 'cancel' ? 'Cancel it' : r.kind === 'move' ? 'Confirm new time' : 'Confirm'}
                   </Button>
                 </div>
               </Glass>
@@ -191,10 +230,10 @@ function Requests() {
         </ul>
       </div>
 
-      <Dialog open={declining !== null} title="Decline this request?" onClose={() => setDeclining(null)}>
+      <Dialog open={declining !== null} title={keepingAsk ? 'Keep this booking?' : 'Decline this request?'} onClose={() => setDeclining(null)}>
         <p className="text-[15px] text-ink-2">The customer sees this reason in their bookings. Keep it short and polite.</p>
         <div className="mt-4 flex flex-wrap gap-2">
-          {REASONS.map((text) => (
+          {(keepingAsk ? KEEP_REASONS : REASONS).map((text) => (
             <button
               key={text}
               type="button"
@@ -213,7 +252,7 @@ function Requests() {
             Keep it
           </Button>
           <Button variant="danger" disabled={reason.trim().length < 3} loading={busyId !== null} onClick={decline}>
-            Decline request
+            {keepingAsk ? 'Keep booking' : 'Decline request'}
           </Button>
         </div>
       </Dialog>

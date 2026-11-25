@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { ArrowRight, Calendar, Check, ChevronLeft, Clock, ImagePlus, Info, MapPin, Scissors, User, Users } from '../components/icons'
 import { InspoDraft } from '../components/Inspo'
@@ -9,10 +9,13 @@ import { addDays, formatClock, formatDay, formatDayLong, formatTime, manilaDateO
 import { duration, errorMessage, peso } from '../lib/format'
 import type { Barber, Booking, Branch, OpeningHours, Service } from '../lib/types'
 import type { ReadyInspo } from '../lib/inspo'
+import { PHOTOS, SERVICE_PHOTOS, type Photo } from '../content/photos'
+import { gsap, MOTION, useGSAP } from '../lib/gsap'
 import { useLoad } from '../lib/useLoad'
 
 // The booking is built step by step and kept in sessionStorage, so it
-// survives a trip to the sign-in page and back.
+// survives a trip to the sign-in page and back (that return link carries ?resume=1).
+// A plain /book always starts fresh at the first step.
 type Draft = { branchId?: string; serviceId?: string; barberId?: string; date?: string; slot?: string; moveId?: string }
 const DRAFT_KEY = 'trimmed-draft'
 const ANY = 'any'
@@ -48,7 +51,8 @@ export function BookPage() {
   const [params] = useSearchParams()
   const timeFormat = profile?.time_format ?? '12h'
 
-  // start from the link (?branch=, ?service=, ?barber=, ?move=) or a saved draft
+  // start from the link (?branch=, ?service=, ?barber=, ?move=), the saved draft when coming back from
+  // signing in (?resume=1), or else a clean start
   const [draft, setDraft] = useState<Draft>(() => {
     const fromLink: Draft = {
       branchId: params.get('branch') ?? undefined,
@@ -56,7 +60,8 @@ export function BookPage() {
       barberId: params.get('barber') ?? undefined,
       moveId: params.get('move') ?? undefined,
     }
-    return fromLink.branchId || fromLink.serviceId || fromLink.barberId || fromLink.moveId ? fromLink : loadDraft()
+    if (fromLink.branchId || fromLink.serviceId || fromLink.barberId || fromLink.moveId) return fromLink
+    return params.get('resume') ? loadDraft() : {}
   })
   const [stepKey, setStepKey] = useState<StepKey>(() =>
     draft.slot ? 'review' : draft.serviceId && draft.barberId ? 'time' : draft.serviceId ? 'barber' : draft.branchId ? 'service' : 'branch',
@@ -67,6 +72,19 @@ export function BookPage() {
   // inspo photos/videos wait here until the booking exists (files can't be saved in the draft)
   const [inspo, setInspo] = useState<ReadyInspo[]>([])
   const [inspoFailed, setInspoFailed] = useState(0)
+  const stepBox = useRef<HTMLDivElement>(null)
+
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia()
+      mm.add(MOTION.ok, () => {
+        gsap.from(stepBox.current, { opacity: 0, y: 18, duration: 0.6 })
+        gsap.from('[data-pick]', { opacity: 0, y: 14, duration: 0.6, stagger: 0.04, delay: 0.05 })
+      })
+      return () => mm.revert()
+    },
+    { dependencies: [stepKey], scope: stepBox }, // replays whenever the step changes
+  )
 
   const branches = useLoad(() => api.listBranches(), [])
   const services = useLoad(() => api.listServices(), [])
@@ -140,7 +158,8 @@ export function BookPage() {
   // after picking on one step, go to the next step that still needs an answer
   function goOn(from: StepKey, answered: Partial<Record<StepKey, boolean>> = {}) {
     const after = flow.slice(flow.indexOf(from) + 1)
-    const has = { ...ready, ...answered, time: false }
+    // the barber and the time are always shown, even when the favourite barber is filled in for you
+    const has = { ...ready, ...answered, barber: false, time: false }
     setStepKey(after.find((k) => !has[k]) ?? 'review')
   }
 
@@ -148,11 +167,11 @@ export function BookPage() {
     if (!service || !draft.slot || !draft.branchId) return
     // not signed in yet: keep the draft and come back here after
     if (!session) {
-      navigate('/signin?next=/book')
+      navigate(`/signin?next=${encodeURIComponent('/book?resume=1')}`)
       return
     }
     if (!profile) {
-      navigate('/welcome?next=/book')
+      navigate(`/welcome?next=${encodeURIComponent('/book?resume=1')}`)
       return
     }
     setSubmitting(true)
@@ -200,7 +219,9 @@ export function BookPage() {
     shownKey !== 'review' ? 'Continue' : !session ? 'Sign in to continue' : draft.moveId ? 'Request new time' : 'Send request'
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 lg:pt-10 lg:pb-20">
+    <div className="relative mx-auto max-w-6xl px-4 pt-6 pb-16 sm:px-6 lg:pt-10 lg:pb-20">
+      {/* a soft amber light behind the page, like the home page */}
+      <div aria-hidden="true" className="pointer-events-none absolute -top-24 right-0 -z-10 size-[34rem] rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--accent)_10%,transparent),transparent)] blur-2xl" />
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12">
         <div className="min-w-0">
           <StepHeader
@@ -218,7 +239,7 @@ export function BookPage() {
             </div>
           )}
 
-          <div className="mt-8" key={shownKey}>
+          <div ref={stepBox} className="mt-8" key={shownKey}>
             {shownKey === 'branch' && (
               <BranchStep
                 branches={branches.data}
@@ -233,6 +254,7 @@ export function BookPage() {
             )}
             {shownKey === 'service' && (
               <ServiceStep
+                photos={SERVICE_PHOTOS}
                 services={services.data}
                 loading={services.loading}
                 selected={draft.serviceId}
@@ -290,6 +312,7 @@ export function BookPage() {
         <aside className="hidden lg:block">
           <div className="sticky top-24">
             <Summary
+              photo={service ? SERVICE_PHOTOS[Math.max(0, services.data?.indexOf(service) ?? 0) % SERVICE_PHOTOS.length] : PHOTOS.chairSilver}
               branch={askBranch ? branch : undefined}
               service={service}
               barber={barber}
@@ -335,7 +358,10 @@ export function BookPage() {
   )
 }
 
-/** The locations: name, address, how many barbers, and today's hours. */
+// branches have no photos in the database yet: they take these in turn (same order as the home page)
+const BRANCH_PHOTOS: Photo[] = [PHOTOS.chairBrick, PHOTOS.salonDim, PHOTOS.clientChair]
+
+/** The locations: photo, name, address, how many barbers, and today's hours. */
 function BranchStep({
   branches,
   barbers,
@@ -365,15 +391,20 @@ function BranchStep({
         const count = barbers?.filter((x) => x.branch_id === b.id).length ?? 0
         const open = hours?.find((h) => h.branch_id === b.id && h.weekday === today)
         return (
-          <Choice key={b.id} selected={b.id === selected} onClick={() => onPick(b.id)} className="flex items-start gap-4 p-5 pr-12">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-raised text-ink-2">
-              <MapPin size={20} />
+          <Choice key={b.id} selected={b.id === selected} onClick={() => onPick(b.id)} className="overflow-hidden p-2">
+            <span className="relative block h-32 overflow-hidden rounded-[1.1rem]">
+              <img src={BRANCH_PHOTOS[branches.indexOf(b) % BRANCH_PHOTOS.length]!.src} alt="" loading="lazy" decoding="async" className="photo-warm size-full object-cover" />
+              <span className="absolute inset-0 bg-gradient-to-t from-bg/70 to-transparent" />
+              <span className="num absolute bottom-2 left-3 font-display text-[34px] leading-none text-ink/90">{String(branches.indexOf(b) + 1).padStart(2, '0')}</span>
             </span>
-            <span className="min-w-0">
-              <span className="block text-[16px] font-medium">{b.name}</span>
+            <span className="flex min-w-0 items-start gap-3 p-3 pr-10">
+              <MapPin size={18} className="mt-1 shrink-0 text-accent-ink" />
+              <span className="min-w-0">
+              <span className="block font-display text-[21px] leading-tight">{b.name}</span>
               {b.address && <span className="mt-0.5 block text-[14px] leading-snug text-ink-2">{b.address}</span>}
               <span className="num mt-2 block text-[13px] text-ink-3">
                 {count} barber{count === 1 ? '' : 's'} · {open ? `Today ${formatClock(open.opens_at, '12h')} – ${formatClock(open.closes_at, '12h')}` : 'Closed today'}
+              </span>
               </span>
             </span>
           </Choice>
@@ -405,17 +436,20 @@ function StepHeader({
           <button
             type="button"
             onClick={onBack}
-            className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-full pr-3 pl-2 text-[15px] text-ink-2 hover:text-ink"
+            className="-ml-2 inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-full pr-3 pl-2 text-[15px] text-ink-2 hover:text-ink"
           >
             <ChevronLeft size={18} />
             Back
           </button>
         ) : (
-          <span className="text-[14px] text-ink-2">{moving ? 'Move your booking' : 'New booking'}</span>
+          <span className="label flex items-center gap-3">
+            <span aria-hidden="true" className="h-px w-8 bg-accent" />
+            {moving ? 'Move your booking' : 'New booking'}
+          </span>
         )}
       </div>
 
-      <ol className="mt-4 flex gap-2" aria-label="Booking steps">
+      <ol className="mt-5 flex gap-2" aria-label="Booking steps">
         {steps.map((s, i) => {
           const state = i < step ? 'done' : i === step ? 'current' : 'todo'
           return (
@@ -425,16 +459,20 @@ function StepHeader({
                 disabled={!canJumpTo(i)}
                 onClick={() => onJump(i)}
                 aria-current={state === 'current' ? 'step' : undefined}
-                className="group w-full text-left disabled:cursor-default"
+                aria-label={`${s.short}${state === 'done' ? ', done' : state === 'current' ? ', current step' : ''}`}
+                className="group w-full cursor-pointer text-left disabled:cursor-default"
               >
-                <span
-                  className={
-                    'block h-1 rounded-full transition-colors ' +
-                    (state === 'todo' ? 'bg-line' : state === 'current' ? 'bg-accent' : 'bg-ink-2 group-hover:bg-ink')
-                  }
-                />
-                <span className={`mt-2 hidden text-[13px] sm:block ${state === 'todo' ? 'text-ink-3' : 'text-ink-2'}`}>
-                  {s.short}
+                <span className="relative block h-px bg-line">
+                  <span
+                    className={
+                      'absolute inset-y-0 left-0 transition-all duration-500 ' +
+                      (state === 'todo' ? 'w-0' : state === 'current' ? 'w-full bg-accent' : 'w-full bg-ink-2 group-hover:bg-ink')
+                    }
+                  />
+                </span>
+                <span className={`mt-2.5 flex items-baseline gap-1.5 text-[12px] ${state === 'todo' ? 'text-ink-3' : state === 'current' ? 'text-accent-ink' : 'text-ink-2'}`}>
+                  <span className="num">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="hidden sm:inline">{s.short}</span>
                 </span>
               </button>
             </li>
@@ -442,10 +480,10 @@ function StepHeader({
         })}
       </ol>
 
-      <p className="mt-6 text-[14px] text-ink-2">
+      <h1 className="mt-8 text-[clamp(2.1rem,8vw,3.25rem)] leading-[1.02] font-medium tracking-[-0.03em]">{steps[step]!.title}</h1>
+      <p className="mt-2 text-[14px] text-ink-3">
         Step {step + 1} of {steps.length}
       </p>
-      <h1 className="mt-1 text-[30px] leading-tight font-semibold tracking-tight sm:text-[36px]">{steps[step]!.title}</h1>
     </div>
   )
 }
@@ -468,20 +506,21 @@ function Choice({
 }) {
   return (
     <button
+      data-pick
       type="button"
       role="radio"
       aria-checked={selected}
       disabled={disabled}
       onClick={onClick}
       className={
-        'glass relative w-full rounded-3xl text-left transition disabled:opacity-50 ' +
-        (selected ? 'border-ink-2 ring-1 ring-ink-2' : 'hover:border-ink-3') +
+        'glass relative w-full cursor-pointer rounded-[1.5rem] text-left transition duration-300 disabled:cursor-default disabled:opacity-50 ' +
+        (selected ? 'border-ink ring-1 ring-ink' : 'hover:-translate-y-0.5 hover:border-ink-3') +
         ` ${className}`
       }
     >
       {children}
       {selected && (
-        <span className={`absolute right-4 flex size-6 ${tickAt === 'top' ? 'top-4' : 'bottom-4'} items-center justify-center rounded-full bg-accent text-on-accent`}>
+        <span className={`absolute right-4 flex size-6 ${tickAt === 'top' ? 'top-4' : 'bottom-4'} items-center justify-center rounded-full bg-ink text-bg`}>
           <Check size={14} strokeWidth={2.5} />
         </span>
       )}
@@ -490,12 +529,14 @@ function Choice({
 }
 
 function ServiceStep({
+  photos,
   services,
   loading,
   selected,
   locked,
   onPick,
 }: {
+  photos: Photo[]
   services?: Service[]
   loading: boolean
   selected?: string
@@ -512,21 +553,38 @@ function ServiceStep({
     )
   }
   return (
-    <div role="radiogroup" aria-label="Service" className="grid grid-cols-1 gap-3">
-      {locked && <Notice>Moving a booking keeps the same service. To change it, cancel and book again.</Notice>}
-      {services?.map((s) => (
-        <Choice key={s.id} selected={s.id === selected} disabled={locked && s.id !== selected} onClick={() => onPick(s.id)} className="p-5" tickAt="bottom">
-          <span className="flex items-baseline justify-between gap-3">
-            <span className="min-w-0 text-[16px] font-medium">{s.name}</span>
-            <span className="num shrink-0 text-[16px] font-semibold">{peso(s.price_centavos)}</span>
-          </span>
-          <span className="mt-1 flex items-center gap-2 text-[14px] text-ink-2">
-            <Clock size={14} />
-            {duration(s.duration_minutes)}
-          </span>
-          {s.description && <span className="mt-2 block pr-8 text-[14px] text-ink-2">{s.description}</span>}
-        </Choice>
-      ))}
+    <div role="radiogroup" aria-label="Service" className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      {locked && (
+        <div className="md:col-span-2">
+          <Notice>Moving a booking keeps the same service. To change it, cancel and book again.</Notice>
+        </div>
+      )}
+      {services?.map((s, i) => {
+        const photo = photos[i % photos.length]!
+        return (
+          <Choice
+            key={s.id}
+            selected={s.id === selected}
+            disabled={locked && s.id !== selected}
+            onClick={() => onPick(s.id)}
+            className="flex gap-4 p-2.5 pr-4"
+            tickAt="bottom"
+          >
+            <img src={photo.src} alt="" loading="lazy" decoding="async" className="photo-warm size-24 shrink-0 rounded-[1.1rem] object-cover sm:size-28" />
+            <span className="flex min-w-0 flex-1 flex-col py-1.5">
+              <span className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 font-display text-[20px] leading-tight">{s.name}</span>
+                <span className="num shrink-0 font-display text-[19px] text-accent-ink">{peso(s.price_centavos)}</span>
+              </span>
+              {s.description && <span className="mt-1 line-clamp-2 block pr-6 text-[14px] leading-snug text-ink-2">{s.description}</span>}
+              <span className="mt-auto flex items-center gap-2 pt-2 text-[13px] text-ink-3">
+                <Clock size={14} />
+                {duration(s.duration_minutes)}
+              </span>
+            </span>
+          </Choice>
+        )
+      })}
     </div>
   )
 }
@@ -548,11 +606,13 @@ function BarberStep({ barbers, selected, onPick }: { barbers?: Barber[]; selecte
         : barbers.map((b) => (
             <Choice key={b.id} selected={b.id === selected} onClick={() => onPick(b.id)} className="flex flex-col items-center p-5 text-center">
               {b.photo_url ? (
-                <img src={b.photo_url} alt="" className="size-20 rounded-full object-cover" />
+                <img src={b.photo_url} alt="" className="size-20 rounded-full object-cover ring-1 ring-accent/50 ring-offset-4 ring-offset-[var(--card)]" />
               ) : (
-                <Avatar name={b.display_name} size={80} />
+                <span className="rounded-full ring-1 ring-accent/50 ring-offset-4 ring-offset-[var(--card)]">
+                  <Avatar name={b.display_name} size={80} />
+                </span>
               )}
-              <span className="mt-3 block w-full truncate text-[15px] font-medium">{b.display_name}</span>
+              <span className="mt-4 block w-full truncate font-display text-[18px]">{b.display_name}</span>
               {b.bio && <span className="mt-0.5 block w-full truncate text-[13px] text-ink-2">{b.bio}</span>}
             </Choice>
           ))}
@@ -759,8 +819,10 @@ function ReviewStep({
             bookings.
           </li>
           <li>You pay at the shop after your service.</li>
+          {moving && <li>Your current booking stays as it is until the shop confirms the new time. If they can't, nothing changes.</li>}
+          <li>Before the shop confirms, you can cancel or move it any time. Once confirmed, cancelling or moving it goes to the shop to approve.</li>
           {cutoffMinutes !== undefined && cutoffMinutes > 0 && (
-            <li>You can cancel or move it from your account up to {hoursText(cutoffMinutes)} before. After that, please call the shop.</li>
+            <li>Changes online close {hoursText(cutoffMinutes)} before your time. After that, please call the shop.</li>
           )}
           <li>Once it's confirmed, show your booking code at the desk when you arrive.</li>
         </ul>
@@ -791,6 +853,7 @@ function Row({ Icon, label, value, detail }: { Icon: typeof Clock; label: string
 }
 
 function Summary({
+  photo,
   branch,
   service,
   barber,
@@ -798,6 +861,7 @@ function Summary({
   slot,
   timeFormat,
 }: {
+  photo: Photo
   branch?: Branch
   service?: Service
   barber?: Barber
@@ -812,9 +876,14 @@ function Summary({
     { label: 'When', value: slot ? `${relativeDay(manilaDateOf(slot))}, ${formatTime(slot, timeFormat)}` : undefined },
   ]
   return (
-    <Glass className="p-6">
-      <h2 className="text-[15px] font-medium text-ink-2">Your booking</h2>
-      <dl className="mt-4 space-y-3">
+    <div className="glass overflow-hidden rounded-[2rem] p-2">
+      <div className="relative h-36 overflow-hidden rounded-[1.6rem]">
+        <img key={photo.src} src={photo.src} alt="" decoding="async" className="photo-warm rise size-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-bg/85 via-bg/20 to-transparent" />
+        <h2 className="absolute bottom-3 left-4 font-display text-[24px]">Your booking</h2>
+      </div>
+      <div className="p-4 pt-5">
+      <dl className="space-y-3">
         {lines.map((line) => (
           <div key={line.label} className="flex items-baseline justify-between gap-4 text-[15px]">
             <dt className="text-ink-3">{line.label}</dt>
@@ -824,9 +893,11 @@ function Summary({
       </dl>
       <div className="mt-5 flex items-baseline justify-between border-t border-glass-line pt-5">
         <span className="text-[15px] text-ink-2">Total</span>
-        <span className="num text-[24px] font-semibold tracking-tight">{service ? peso(service.price_centavos) : '—'}</span>
+        <span className="num font-display text-[30px] tracking-tight">{service ? peso(service.price_centavos) : '—'}</span>
       </div>
-    </Glass>
+      <p className="mt-1 text-right text-[12px] text-ink-3">Pay at the shop, after your cut</p>
+      </div>
+    </div>
   )
 }
 
@@ -838,10 +909,11 @@ function Booked({ booking, timeFormat, moved, inspoFailed }: { booking: Booking;
         <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-warn-bg text-warn">
           <Clock size={32} />
         </span>
-        <h1 className="mt-6 text-[30px] font-semibold tracking-tight">{moved ? 'New time requested' : 'Request sent'}</h1>
+        <h1 className="mt-6 text-[clamp(2.2rem,9vw,3rem)] leading-tight font-medium tracking-[-0.03em]">{moved ? 'New time requested' : 'Request sent'}</h1>
         <p className="mt-2 text-[16px] leading-relaxed text-ink-2">
           Your time on {relativeDay(date) === 'Today' ? 'today' : formatDayLong(date)} is held for you. The shop will confirm it, and
           you'll see the answer in My bookings.
+          {booking.replaces_starts_at && ' Your current booking stays as it is until then.'}
         </p>
       </div>
 
@@ -855,8 +927,9 @@ function Booked({ booking, timeFormat, moved, inspoFailed }: { booking: Booking;
       )}
 
       <Glass className="rise mt-8 p-6 [animation-delay:100ms]">
-        <p className="text-center text-[13px] tracking-[0.14em] text-ink-3 uppercase">Booking code</p>
-        <p className="num mt-1 text-center text-[34px] font-semibold tracking-[0.12em]">{booking.code}</p>
+        <p className="label text-center">Booking code</p>
+        <p className="num mt-2 text-center font-display text-[40px] tracking-[0.14em]">{booking.code}</p>
+        <div className="hairline mt-4" />
         <dl className="mt-6 space-y-3 border-t border-glass-line pt-6 text-[15px]">
           {[
             ...(booking.branch ? [['Location', booking.branch]] : []),

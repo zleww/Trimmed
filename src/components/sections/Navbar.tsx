@@ -26,6 +26,7 @@ export function Navbar() {
   const { pathname } = useLocation()
   const lenis = useLenis()
   const onHome = pathname === '/'
+  const onBooking = pathname.startsWith('/book')
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
   const menu = useRef<HTMLDivElement>(null)
@@ -106,16 +107,27 @@ export function Navbar() {
 
         <div className="flex items-center gap-1.5">
           {(staffRole === 'owner' || staffRole === 'desk') && (
-            <NavLink to="/shop" className={({ isActive }) => buttonClass(isActive ? 'secondary' : 'ghost', 'hidden min-h-10 px-4 text-[14px] sm:inline-flex')}>
+            <NavLink to="/shop" className={({ isActive }) => buttonClass(isActive ? 'secondary' : 'ghost', 'min-h-10 px-4 text-[14px] max-sm:hidden')}>
               Shop
             </NavLink>
+          )}
+          {/* Book now on every page but the booking page itself. Amber once the hero's own button has scrolled away,
+              so the screen never shows two amber buttons at once. */}
+          {!onBooking && staffRole !== 'owner' && staffRole !== 'desk' && (
+            <Link to="/book" className={buttonClass(pill ? 'primary' : 'secondary', 'min-h-10 px-4 text-[14px] whitespace-nowrap')}>
+              {/* one span, so the button's gap doesn't split "Book now" */}
+              <span>
+                Book<span className="max-[379px]:hidden"> now</span>
+              </span>
+            </Link>
           )}
           {session ? (
             <NavLink to="/account" aria-label="My account" className="flex size-11 items-center justify-center rounded-full transition hover:bg-[var(--glass)]">
               <Avatar name={profile?.full_name ?? session.email} url={profile?.avatar_url} size={34} />
             </NavLink>
           ) : (
-            <Link to="/signin" className={buttonClass('secondary', 'min-h-10 px-4 text-[14px]')}>
+            // phones: Sign in moves into the menu so the bar fits
+            <Link to="/signin" className={buttonClass('ghost', 'min-h-10 px-4 text-[14px] max-sm:hidden')}>
               Sign in
             </Link>
           )}
@@ -168,6 +180,13 @@ export function Navbar() {
               </div>
             ))}
           </nav>
+          {!session && (
+            <div className="mb-3 overflow-hidden">
+              <Link data-menu-item to="/signin" onClick={() => setOpen(false)} className={buttonClass('secondary', 'h-13 w-full text-[16px]')}>
+                Sign in
+              </Link>
+            </div>
+          )}
           <div className="overflow-hidden">
             <Link data-menu-item to="/book" onClick={() => setOpen(false)} className={buttonClass('primary', 'h-13 w-full text-[16px]')}>
               Book an appointment

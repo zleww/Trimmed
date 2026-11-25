@@ -47,6 +47,19 @@ const rules: BookingRules = { slot_step_minutes: 15, booking_days_ahead: 14, min
 let session: Session | null = null
 let profile: Profile | null = null
 const bookings: Booking[] = []
+// a request for a new time -> the confirmed booking it would replace
+const replaces = new Map<string, string>()
+
+function pendingMoves(bookingId: string) {
+  return bookings.filter((b) => replaces.get(b.id) === bookingId && b.status === 'requested')
+}
+
+// what the database's booking summary adds about waiting changes
+function withChanges(b: Booking): Booking {
+  const old = bookings.find((x) => x.id === replaces.get(b.id))
+  const moving = b.status === 'booked' ? pendingMoves(b.id).at(-1) : undefined
+  return { ...b, replaces_starts_at: old?.starts_at ?? null, moving_to: moving?.starts_at ?? null, cancel_requested: Boolean(b.cancel_requested) }
+}
 const takenUsernames = new Set(['admin', 'owner', 'staff', 'desk', 'barber', 'trimmed', 'sample.fan'])
 const inspo = new Map<string, Inspo & { bookingId: string }>()
 
@@ -313,27 +326,52 @@ export const demoApi: Api = {
   },
   async myBookings() {
     await wait()
-    return [...bookings].sort((a, b) => b.starts_at.localeCompare(a.starts_at))
+    return [...bookings].map(withChanges).sort((a, b) => b.starts_at.localeCompare(a.starts_at))
   },
   async cancelBooking(id) {
     await wait()
     const booking = bookings.find((b) => b.id === id)
     if (!booking) throw new Error('Booking not found')
-    booking.status = 'cancelled'
-    return booking
+    if (booking.status === 'requested') {
+      booking.status = 'cancelled'
+      return withChanges(booking)
+    }
+    if (booking.cancel_requested) throw new Error('You already asked to cancel this booking. The shop will answer soon.')
+    for (const move of pendingMoves(id)) move.status = 'cancelled'
+    booking.cancel_requested = true
+    booking.cancel_answer = null
+    return withChanges(booking)
+  },
+  async keepBooking(id) {
+    await wait()
+    const booking = bookings.find((b) => b.id === id)
+    if (!booking?.cancel_requested) throw new Error('There is no cancel request on this booking')
+    booking.cancel_requested = false
+    return withChanges(booking)
   },
   async rescheduleBooking(id, barberId, startsAt) {
     const old = bookings.find((b) => b.id === id)
     if (!old) throw new Error('Booking not found')
-    old.status = 'cancelled'
-    try {
-      const moved = await demoApi.book(old.service_id, old.branch_id ?? 'br1', barberId, startsAt)
-      for (const item of inspo.values()) if (item.bookingId === id) item.bookingId = moved.id
-      return moved
-    } catch (error) {
-      old.status = 'booked'
-      throw error
+    if (old.status === 'requested') {
+      // never confirmed: swap it straight away, still pointing at any confirmed booking it replaces
+      old.status = 'cancelled'
+      try {
+        const moved = await demoApi.book(old.service_id, old.branch_id ?? 'br1', barberId, startsAt)
+        const original = replaces.get(old.id)
+        if (original) replaces.set(moved.id, original)
+        for (const item of inspo.values()) if (item.bookingId === id) item.bookingId = moved.id
+        return withChanges(moved)
+      } catch (error) {
+        old.status = 'requested'
+        throw error
+      }
     }
+    if (old.cancel_requested) throw new Error('You asked to cancel this booking. Keep it first if you want to move it.')
+    for (const move of pendingMoves(id)) move.status = 'cancelled'
+    // confirmed: it stays until the shop confirms the new time
+    const moved = await demoApi.book(old.service_id, old.branch_id ?? 'br1', barberId, startsAt)
+    replaces.set(moved.id, old.id)
+    return withChanges(moved)
   },
 
   async barberRatings() {
@@ -441,10 +479,12 @@ export const demoApi: Api = {
     await wait()
     needDesk()
     return bookings
-      .filter((b) => b.status === 'requested' && new Date(b.starts_at).getTime() > Date.now())
+      .filter((b) => (b.status === 'requested' || (b.status === 'booked' && b.cancel_requested)) && new Date(b.starts_at).getTime() > Date.now())
       .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
       .map((b) => ({
         id: b.id,
+        kind: b.status === 'booked' ? ('cancel' as const) : replaces.has(b.id) ? ('move' as const) : ('new' as const),
+        replaces_starts_at: bookings.find((x) => x.id === replaces.get(b.id))?.starts_at ?? null,
         code: b.code,
         starts_at: b.starts_at,
         ends_at: b.ends_at,
@@ -465,7 +505,30 @@ export const demoApi: Api = {
   },
   async confirmBooking(id) {
     await wait()
-    waiting(id).status = 'booked'
+    const booking = waiting(id)
+    booking.status = 'booked'
+    const old = bookings.find((b) => b.id === replaces.get(id))
+    if (old && old.status === 'booked') {
+      old.status = 'cancelled'
+      for (const item of inspo.values()) if (item.bookingId === old.id) item.bookingId = id
+    }
+  },
+  async approveCancel(id) {
+    await wait()
+    needDesk()
+    const booking = bookings.find((b) => b.id === id)
+    if (!booking || booking.status !== 'booked' || !booking.cancel_requested) throw new Error('This request was already answered or taken back')
+    booking.status = 'cancelled'
+    booking.cancel_requested = false
+  },
+  async refuseCancel(id, reason) {
+    await wait()
+    needDesk()
+    if (reason.trim().length < 3) throw new Error('Give the customer a short reason (3 to 200 characters)')
+    const booking = bookings.find((b) => b.id === id)
+    if (!booking || booking.status !== 'booked' || !booking.cancel_requested) throw new Error('This request was already answered or taken back')
+    booking.cancel_requested = false
+    booking.cancel_answer = reason.trim()
   },
   async declineBooking(id, reason) {
     await wait()

@@ -54,6 +54,14 @@ export type Booking = {
   price_centavos: number
   /** the shop's reason, when a request was declined */
   reason?: string | null
+  /** a confirmed booking the customer asked to cancel; the shop hasn't answered yet */
+  cancel_requested?: boolean
+  /** the shop's reason when it kept a booking the customer asked to cancel */
+  cancel_answer?: string | null
+  /** on a request for a new time: the confirmed time it would replace */
+  replaces_starts_at?: string | null
+  /** on a confirmed booking: the new time asked for, while the shop decides */
+  moving_to?: string | null
 }
 
 export type StaffRole = 'owner' | 'desk' | 'barber'
@@ -61,6 +69,10 @@ export type StaffRole = 'owner' | 'desk' | 'barber'
 /** A customer's request as the desk sees it, with what helps to decide. */
 export type BookingRequest = {
   id: string
+  /** new = a first booking, move = a new time for a confirmed booking, cancel = asks to cancel a confirmed booking */
+  kind: 'new' | 'move' | 'cancel'
+  /** on a move: the confirmed time it would replace */
+  replaces_starts_at: string | null
   code: string
   starts_at: string
   ends_at: string
@@ -178,7 +190,10 @@ export type Api = {
   // bookings
   book(serviceId: string, branchId: string, barberId: string | null, startsAt: string): Promise<Booking>
   myBookings(): Promise<Booking[]>
+  /** a waiting request is cancelled at once; a confirmed booking becomes a cancel request for the shop */
   cancelBooking(id: string): Promise<Booking>
+  /** take back a cancel request the shop hasn't answered */
+  keepBooking(id: string): Promise<Booking>
   rescheduleBooking(id: string, barberId: string | null, startsAt: string): Promise<Booking>
 
   // reviews
@@ -202,6 +217,9 @@ export type Api = {
   bookingRequests(): Promise<BookingRequest[]>
   confirmBooking(id: string): Promise<void>
   declineBooking(id: string, reason: string): Promise<void>
+  approveCancel(id: string): Promise<void>
+  /** keep the booking; the customer sees the reason */
+  refuseCancel(id: string, reason: string): Promise<void>
 
   // inspo on a booking
   listInspo(bookingId: string): Promise<Inspo[]>

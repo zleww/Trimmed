@@ -257,6 +257,10 @@ export function createSupabaseApi(db: SupabaseClient): Api {
       return check(await db.rpc('cancel_my_booking', { p_id: id })) as Booking
     },
 
+    async keepBooking(id) {
+      return check(await db.rpc('keep_my_booking', { p_id: id })) as Booking
+    },
+
     async rescheduleBooking(id, barberId, startsAt) {
       return check(
         await db.rpc('reschedule_my_booking', { p_id: id, p_barber: barberId, p_starts_at: startsAt }),
@@ -335,6 +339,14 @@ export function createSupabaseApi(db: SupabaseClient): Api {
 
     async declineBooking(id, reason) {
       check(await db.rpc('decline_booking', { p_id: id, p_reason: reason }))
+    },
+
+    async approveCancel(id) {
+      check(await db.rpc('approve_cancel', { p_id: id }))
+    },
+
+    async refuseCancel(id, reason) {
+      check(await db.rpc('refuse_cancel', { p_id: id, p_reason: reason }))
     },
 
     async listInspo(bookingId) {

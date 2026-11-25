@@ -192,6 +192,8 @@ describe('inspo on bookings', () => {
     const moved = await as(db, alice, () =>
       value(db, 'select public.reschedule_my_booking($1, $2, $3) as r', [booking.id, shop.chairB, later]),
     )
+    // the inspo follows once the desk confirms the new time
+    await as(db, shop.desk, () => db.query('select public.confirm_booking($1)', [moved.id]))
     expect((await as(db, alice, () => value(db, 'select public.booking_inspo($1) as r', [moved.id]))).length).toBe(1)
     // the new barber sees it now
     expect((await as(db, shop.barberB, () => value(db, 'select public.booking_inspo($1) as r', [moved.id]))).length).toBe(1)

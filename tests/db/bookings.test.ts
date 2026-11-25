@@ -126,10 +126,13 @@ describe('booking', () => {
 })
 
 describe('cancel and reschedule', () => {
-  test('a customer cancels and the slot opens again', async () => {
+  test('a customer asks to cancel; the seat opens once the desk agrees', async () => {
     const time = await manila(db, 1, '10:00')
     const booking = await book(db, alice, shop.haircut, shop.chairA, time)
     await as(db, alice, () => db.query('select public.cancel_my_booking($1)', [booking.id]))
+    // still held while the shop decides
+    expect(await slots(shop.chairA)).not.toContain(time)
+    await as(db, shop.desk, () => db.query('select public.approve_cancel($1)', [booking.id]))
     expect(await slots(shop.chairA)).toContain(time)
   })
 
@@ -157,6 +160,9 @@ describe('cancel and reschedule', () => {
       value(db, 'select public.reschedule_my_booking($1, $2, $3) as r', [booking.id, shop.chairA, await manila(db, 1, '15:00')]),
     )
     expect(moved.starts_at).toBeTruthy()
+    // the confirmed booking stands until the desk confirms the new time
+    expect(await value(db, 'select status as r from public.appointments where id = $1', [booking.id])).toBe('booked')
+    await as(db, shop.desk, () => db.query('select public.confirm_booking($1)', [moved.id]))
     expect(await value(db, 'select status as r from public.appointments where id = $1', [booking.id])).toBe('cancelled')
   })
 })

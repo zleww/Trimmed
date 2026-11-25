@@ -36,12 +36,36 @@ export function BookingsPage() {
     (b.status === 'requested' && new Date(b.starts_at).getTime() > now) ||
     (b.status === 'booked' && new Date(b.starts_at).getTime() - now >= cutoff)
 
+  // short day and time, for the lines about waiting changes
+  const when = (iso: string) =>
+    `${new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(iso))}, ${formatTime(iso, timeFormat)}`
+
+  async function keep(b: Booking) {
+    setBusy(true)
+    setMessage(null)
+    try {
+      await api.keepBooking(b.id)
+      setMessage({ tone: 'good', text: 'Cancel request taken back. Your booking stays as it is.' })
+      bookings.reload()
+    } catch (reason) {
+      setMessage({ tone: 'bad', text: errorMessage(reason) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function cancel() {
     if (!cancelling) return
     setBusy(true)
     try {
       await api.cancelBooking(cancelling.id)
-      setMessage({ tone: 'good', text: cancelling.status === 'requested' ? 'Request cancelled.' : 'Booking cancelled. The time is free for someone else now.' })
+      setMessage({
+        tone: 'good',
+        text:
+          cancelling.status === 'requested'
+            ? 'Request cancelled.'
+            : 'Cancel request sent. Your booking stays until the shop answers, and you can take it back until then.',
+      })
       bookings.reload()
     } catch (reason) {
       setMessage({ tone: 'bad', text: errorMessage(reason) })
@@ -84,7 +108,21 @@ export function BookingsPage() {
               <li key={b.id}>
                 <BookingCard booking={b} timeFormat={timeFormat}>
                   {b.status === 'requested' && (
-                    <p className="mt-4 text-[13px] leading-relaxed text-ink-2">Your time is held. The shop will confirm it soon.</p>
+                    <p className="mt-4 text-[13px] leading-relaxed text-ink-2">
+                      {b.replaces_starts_at
+                        ? `A new time for your booking on ${when(b.replaces_starts_at)}. That booking stays as it is until the shop confirms this one.`
+                        : 'Your time is held. The shop will confirm it soon.'}
+                    </p>
+                  )}
+                  {b.status === 'booked' && b.moving_to && !b.cancel_requested && (
+                    <p className="mt-4 rounded-2xl bg-warn-bg px-4 py-3 text-[13px] leading-relaxed text-warn">
+                      You asked to move this to {when(b.moving_to)}. It stays as it is until the shop confirms the new time.
+                    </p>
+                  )}
+                  {b.status === 'booked' && b.cancel_answer && !b.cancel_requested && (
+                    <p className="mt-4 text-[13px] leading-relaxed text-ink-2">
+                      <span className="font-medium text-ink">The shop kept this booking.</span> "{b.cancel_answer}"
+                    </p>
                   )}
                   {b.status === 'declined' ? (
                     <div className="mt-4 space-y-3 border-t border-glass-line pt-4">
@@ -102,7 +140,14 @@ export function BookingsPage() {
                       editable={(b.status === 'booked' || b.status === 'requested') && new Date(b.starts_at).getTime() > now}
                     />
                   )}
-                  {b.status === 'declined' ? null : changeable(b) ? (
+                  {b.status === 'booked' && b.cancel_requested ? (
+                    <div className="mt-5 flex flex-col gap-3 border-t border-glass-line pt-4 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-[13px] leading-relaxed text-warn">You asked to cancel. Your booking stands until the shop answers.</p>
+                      <Button variant="ghost" className="shrink-0" loading={busy} onClick={() => keep(b)}>
+                        Keep my booking
+                      </Button>
+                    </div>
+                  ) : b.status === 'declined' ? null : changeable(b) ? (
                     <div className="mt-5 flex gap-2 border-t border-glass-line pt-4">
                       <Link
                         to={`/book?move=${b.id}&branch=${b.branch_id ?? ''}&service=${b.service_id}&barber=${b.barber_id ?? 'any'}`}
@@ -117,7 +162,7 @@ export function BookingsPage() {
                         className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[14px] font-medium text-bad hover:bg-bad-bg"
                       >
                         <Ban size={16} />
-                        Cancel
+                        {b.status === 'booked' ? 'Ask to cancel' : 'Cancel'}
                       </button>
                     </div>
                   ) : b.status === 'booked' ? (
@@ -148,17 +193,27 @@ export function BookingsPage() {
         </section>
       )}
 
-      <Dialog open={cancelling !== null} title={cancelling?.status === 'requested' ? 'Cancel this request?' : 'Cancel this booking?'} onClose={() => setCancelling(null)}>
+      <Dialog
+        open={cancelling !== null}
+        title={cancelling?.status === 'requested' ? 'Cancel this request?' : 'Ask the shop to cancel?'}
+        onClose={() => setCancelling(null)}
+      >
         <p className="text-[15px] text-ink-2">
           {cancelling &&
             `${cancelling.service}, ${new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', weekday: 'long', month: 'short', day: 'numeric' }).format(new Date(cancelling.starts_at))} at ${formatTime(cancelling.starts_at, timeFormat)}.`}
         </p>
+        {cancelling?.status === 'booked' && (
+          <p className="mt-3 text-[14px] leading-relaxed text-ink-2">
+            The shop already planned around this booking, so it checks before cancelling. Your booking stands until they answer.
+            {cancelling.moving_to && ' Your request for a new time will be dropped.'}
+          </p>
+        )}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="ghost" onClick={() => setCancelling(null)}>
             Keep it
           </Button>
           <Button variant="danger" loading={busy} onClick={cancel}>
-            Cancel booking
+            {cancelling?.status === 'booked' ? 'Send cancel request' : 'Cancel request'}
           </Button>
         </div>
       </Dialog>
