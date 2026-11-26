@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
-import { as, createDatabase, setupShop, value, walkInInChair, type Shop } from './helpers'
+import { addLogin, as, createDatabase, rows, setupShop, value, walkInInChair, type Shop } from './helpers'
 
 let db: PGlite
 let shop: Shop
@@ -50,5 +50,15 @@ describe('owner dashboard', () => {
     expect(d.services).toEqual([{ name: 'Haircut', count: 2 }])
     expect(d.recent).toHaveLength(2)
     expect(d.recent[0]).toMatchObject({ items: 'Haircut', barber: 'Barber A', paid_by: 'cash' })
+  })
+})
+
+describe('desk queue', () => {
+  test('each row has the service id and booked price, and customers cannot read it', async () => {
+    await walkInInChair(db, shop)
+    const [row] = await as(db, shop.desk, () => rows(db, 'select * from public.queue_for_day(public.manila_today())'))
+    expect(row).toMatchObject({ service_id: shop.haircut, service_name: 'Haircut', price_centavos: 25000, status: 'in_chair' })
+    const stranger = await addLogin(db)
+    await expect(as(db, stranger, () => rows(db, 'select * from public.queue_for_day(public.manila_today())'))).rejects.toThrow(/Not allowed/)
   })
 })
