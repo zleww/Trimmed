@@ -12,7 +12,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 // Sites allowed to call this function. Add your own domain if it changes.
-const allowedOrigins = (Deno.env.get('ALLOWED_ORIGINS') ?? 'https://trimmed-ten.vercel.app,http://localhost:5175,http://localhost:5176')
+const allowedOrigins = (Deno.env.get('ALLOWED_ORIGINS') ?? 'https://trimmed-ten.vercel.app,https://trimmed-staff.vercel.app,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178')
   .split(',')
   .map((origin) => origin.trim())
 
