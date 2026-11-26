@@ -46,7 +46,26 @@ const rules: BookingRules = { slot_step_minutes: 15, booking_days_ahead: 14, min
 
 let session: Session | null = null
 let profile: Profile | null = null
-const bookings: Booking[] = []
+// one finished cut a few days ago, so "Rate your cut" can be tried in the sample data
+const bookings: Booking[] = [
+  (() => {
+    const start = new Date(Math.round((Date.now() - 3 * 86_400_000) / 900_000) * 900_000)
+    return {
+      id: 'sample-done',
+      code: 'SAMPLE01',
+      starts_at: start.toISOString(),
+      ends_at: new Date(start.getTime() + services[0].duration_minutes * 60_000).toISOString(),
+      status: 'done' as const,
+      service_id: services[0].id,
+      service: services[0].name,
+      branch_id: 'br1',
+      branch: 'Sample Branch One',
+      barber_id: 'b1',
+      barber: 'Sample Barber 1',
+      price_centavos: services[0].price_centavos,
+    }
+  })(),
+]
 // a request for a new time -> the confirmed booking it would replace
 const replaces = new Map<string, string>()
 

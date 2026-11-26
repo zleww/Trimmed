@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowRight, Ban, Move } from '../../components/icons'
+import { ArrowRight, Ban, Move, Star } from '../../components/icons'
 import { BookingInspo } from '../../components/Inspo'
 import { Button, ButtonLink, Dialog, Glass, Notice, Skeleton, StatusBadge } from '../../components/ui'
 import { api } from '../../lib/api'
@@ -9,6 +9,7 @@ import { formatTime } from '../../lib/dates'
 import { errorMessage, peso } from '../../lib/format'
 import type { Booking } from '../../lib/types'
 import { useLoad } from '../../lib/useLoad'
+import { RateDialog } from './RateDialog'
 
 const ACTIVE = ['requested', 'booked', 'checked_in', 'in_chair']
 
@@ -18,6 +19,7 @@ export function BookingsPage() {
   const bookings = useLoad(() => api.myBookings(), [])
   const rules = useLoad(() => api.bookingRules(), [])
   const [cancelling, setCancelling] = useState<Booking | null>(null)
+  const [rating, setRating] = useState<Booking | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null)
 
@@ -28,6 +30,8 @@ export function BookingsPage() {
     .filter((b) => (ACTIVE.includes(b.status) || b.status === 'declined') && new Date(b.ends_at).getTime() > now)
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
   const past = (bookings.data ?? []).filter((b) => !upcoming.includes(b))
+  // the newest finished cut from the last 7 days gets a nudge at the top
+  const justCut = past.find((b) => b.status === 'done' && b.barber_id && now - new Date(b.ends_at).getTime() < 7 * 86_400_000)
 
   // matches the database rule, so we don't offer a button that would be refused
   const cutoff = (rules.data?.cancel_cutoff_minutes ?? 120) * 60000
@@ -88,6 +92,21 @@ export function BookingsPage() {
   return (
     <div className="space-y-10">
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
+
+      {justCut && (
+        <Glass className="flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[16px] font-medium">How was your cut with {justCut.barber ?? 'us'}?</p>
+            <p className="mt-1 text-[14px] text-ink-2">
+              {justCut.service}, {when(justCut.starts_at)}. Your stars help other customers pick.
+            </p>
+          </div>
+          <Button variant="secondary" className="shrink-0" onClick={() => setRating(justCut)}>
+            <Star size={18} />
+            Rate your cut
+          </Button>
+        </Glass>
+      )}
 
       <section>
         <h2 className="text-[18px] font-semibold tracking-tight">Upcoming</h2>
@@ -186,12 +205,26 @@ export function BookingsPage() {
                 <BookingCard booking={b} timeFormat={timeFormat} muted>
                   {b.status === 'requested' && <p className="mt-3 text-[13px] text-ink-3">The shop didn't confirm this one in time.</p>}
                   {b.status === 'declined' && b.reason && <p className="mt-3 text-[13px] text-ink-3">Declined: "{b.reason}"</p>}
+                  {b.status === 'done' && b.barber_id && (
+                    <div className="mt-4 border-t border-glass-line pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setRating(b)}
+                        className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-[14px] font-medium text-ink hover:bg-[var(--glass)]"
+                      >
+                        <Star size={16} />
+                        Rate your cut
+                      </button>
+                    </div>
+                  )}
                 </BookingCard>
               </li>
             ))}
           </ul>
         </section>
       )}
+
+      {rating && <RateDialog booking={rating} onClose={() => setRating(null)} />}
 
       <Dialog
         open={cancelling !== null}
