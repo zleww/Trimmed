@@ -221,9 +221,24 @@ export type Api = {
   approveCancel(id: string): Promise<void>
   /** keep the booking; the customer sees the reason */
   refuseCancel(id: string, reason: string): Promise<void>
+  /** owner only: every number on the owner's home screen */
+  ownerDashboard(days: 7 | 30 | 90): Promise<OwnerDashboard>
 
   // inspo on a booking
   listInspo(bookingId: string): Promise<Inspo[]>
   addInspo(bookingId: string, file: Blob, kind: Inspo['kind']): Promise<Inspo>
   removeInspo(id: string): Promise<void>
+}
+
+/** What owner_dashboard() returns. Money is centavos. */
+export interface OwnerDashboard {
+  days: number
+  today: { revenue_centavos: number; sales: number }
+  bookings_today: { total: number; done: number; no_show: number }
+  waiting_requests: number
+  period: { revenue_centavos: number; previous_centavos: number; expenses_centavos: number; sales: number }
+  daily: { day: string; revenue_centavos: number }[]
+  barbers: { name: string; services: number; revenue_centavos: number }[]
+  services: { name: string; count: number }[]
+  recent: { id: string; sold_at: string; total_centavos: number; items: string | null; barber: string | null; paid_by: string | null }[]
 }

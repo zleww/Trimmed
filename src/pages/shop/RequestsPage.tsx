@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate } from 'react-router'
 import { Alert, Ban, Calendar, CheckCircle, Clock, Scissors, User } from '../../components/icons'
 import { BookingInspo } from '../../components/Inspo'
 import { Button, Dialog, Field, Glass, Notice, Skeleton } from '../../components/ui'
@@ -9,7 +8,6 @@ import { formatDayLong, formatTime, manilaDateOf, relativeDay } from '../../lib/
 import { errorMessage, peso, prettyMobile } from '../../lib/format'
 import type { BookingRequest } from '../../lib/types'
 import { useLoad } from '../../lib/useLoad'
-import { ContactInbox } from './ContactInbox'
 
 // Quick reasons the desk can tap instead of typing. The customer sees the reason.
 const REASONS = ['That time is no longer available.', 'The barber is not available then.', 'The shop is closed that day.']
@@ -18,39 +16,9 @@ const KEEP_REASONS = ['Please call us so we can talk it over.', 'It is too close
 
 /**
  * The owner and front desk see customers' booking requests and confirm or
- * decline them. The database checks the role again on every action.
+ * decline them. ShopLayout checks the role; the database checks again on every action.
  */
 export function RequestsPage() {
-  const { session, staffRole } = useAuth()
-
-  if (session === null) return <Navigate to="/signin?next=/shop" replace />
-  if (session === undefined || staffRole === undefined) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
-        <Skeleton className="h-64" />
-      </div>
-    )
-  }
-  if (staffRole !== 'owner' && staffRole !== 'desk') {
-    return (
-      <div className="mx-auto max-w-md px-4 py-20 text-center">
-        <h1 className="text-[30px]">For the shop only</h1>
-        <p className="mt-2 text-ink-2">This page is for the owner and the front desk.</p>
-        <Link to="/" className="mt-6 inline-block text-[15px] font-medium text-ink underline underline-offset-4">
-          Back to home
-        </Link>
-      </div>
-    )
-  }
-  return (
-    <>
-      <Requests />
-      <ContactInbox />
-    </>
-  )
-}
-
-function Requests() {
   const { profile } = useAuth()
   const timeFormat = profile?.time_format ?? '12h'
   const requests = useLoad(() => api.bookingRequests(), [])
@@ -120,7 +88,7 @@ function Requests() {
   const list = requests.data ?? []
 
   return (
-    <div className="mx-auto max-w-3xl px-4 pt-8 pb-16 sm:px-6 sm:pt-12">
+    <div className="mx-auto max-w-3xl">
       <p className="text-[12px] font-semibold tracking-[0.2em] text-accent-ink uppercase">Shop</p>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-[34px] leading-tight tracking-tight sm:text-[40px]">Booking requests</h1>

@@ -1,5 +1,5 @@
 import { manilaDateOf, manilaToday, manilaWallClock, addDays } from './dates'
-import type { Api, Barber, BarberReviews, Booking, Branch, BookingRequest, BookingRules, BranchReviews, ContactMessage, Inspo, OpeningHours, Profile, Review, Service, Session, StaffRole } from './types'
+import type { Api, Barber, BarberReviews, Booking, Branch, BookingRequest, BookingRules, BranchReviews, ContactMessage, Inspo, OpeningHours, OwnerDashboard, Profile, Review, Service, Session, StaffRole } from './types'
 
 // Sample data for working on the screens without a database.
 // Development only: api.ts never loads this file in a production build.
@@ -540,6 +540,12 @@ export const demoApi: Api = {
     booking.reason = reason.trim()
   },
 
+  async ownerDashboard(days) {
+    await wait()
+    if (demoRole() !== 'owner') throw new Error('Not allowed')
+    return sampleDashboard(days)
+  },
+
   async listInspo(bookingId) {
     await wait(150)
     return [...inspo.values()].filter((i) => i.bookingId === bookingId).map(({ bookingId: _booking, ...item }) => item)
@@ -555,4 +561,43 @@ export const demoApi: Api = {
     await wait(150)
     inspo.delete(id)
   },
+}
+
+// made-up but steady numbers (same every reload) so the owner screen can be worked on
+function sampleDashboard(days: number): OwnerDashboard {
+  const daily = Array.from({ length: days }, (_, i) => {
+    const day = new Date(Date.now() - (days - 1 - i) * 86_400_000).toISOString().slice(0, 10)
+    const weekend = [0, 6].includes(new Date(day).getDay())
+    const wobble = Math.round((Math.sin(i * 1.7) + 1) * 1500) * 100
+    return { day, revenue_centavos: (weekend ? 900000 : 550000) + wobble }
+  })
+  const revenue = daily.reduce((sum, d) => sum + d.revenue_centavos, 0)
+  const now = Date.now()
+  return {
+    days,
+    today: { revenue_centavos: daily.at(-1)!.revenue_centavos, sales: 21 },
+    bookings_today: { total: 26, done: 14, no_show: 1 },
+    waiting_requests: bookings.filter((b) => b.status === 'requested').length,
+    period: { revenue_centavos: revenue, previous_centavos: Math.round(revenue * 0.91), expenses_centavos: Math.round(revenue * 0.34), sales: days * 19 },
+    daily,
+    barbers: [
+      { name: 'Barber A (sample)', services: days * 8, revenue_centavos: Math.round(revenue * 0.42) },
+      { name: 'Barber B (sample)', services: days * 6, revenue_centavos: Math.round(revenue * 0.33) },
+      { name: 'Barber C (sample)', services: days * 4, revenue_centavos: Math.round(revenue * 0.25) },
+    ],
+    services: [
+      { name: 'Haircut', count: days * 11 },
+      { name: 'Haircut and beard', count: days * 4 },
+      { name: 'Beard trim', count: days * 3 },
+      { name: 'Hot towel shave', count: days },
+    ],
+    recent: ['Haircut', 'Beard trim', 'Haircut, Pomade', 'Haircut and beard', 'Haircut'].map((items, i) => ({
+      id: `s${i}`,
+      sold_at: new Date(now - i * 38 * 60_000).toISOString(),
+      total_centavos: [25000, 15000, 60000, 40000, 25000][i],
+      items,
+      barber: ['Barber A (sample)', 'Barber B (sample)', 'Barber A (sample)', 'Barber C (sample)', 'Barber B (sample)'][i],
+      paid_by: i % 2 ? 'gcash' : 'cash',
+    })),
+  }
 }

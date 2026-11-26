@@ -231,3 +231,24 @@ export const ArrowUpRight = (p: IconProps) => (
     <path d="M7 17 17 7M8 7h9v9" />
   </Icon>
 )
+
+export const Grid = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3.5" y="3.5" width="7" height="7" rx="2" />
+    <rect x="13.5" y="3.5" width="7" height="7" rx="2" />
+    <rect x="3.5" y="13.5" width="7" height="7" rx="2" />
+    <rect x="13.5" y="13.5" width="7" height="7" rx="2" />
+  </Icon>
+)
+export const Mail = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <path d="m4 7 8 6 8-6" />
+  </Icon>
+)
+export const TrendUp = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m4 16 6-6 4 4 6-7" />
+    <path d="M15 7h5v5" />
+  </Icon>
+)

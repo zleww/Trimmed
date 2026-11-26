@@ -34,11 +34,11 @@ export function ContactInbox() {
   }
 
   return (
-    <section aria-labelledby="inbox-title" className="mx-auto max-w-3xl px-4 pb-16 sm:px-6">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-t border-glass-line pt-10">
-        <h2 id="inbox-title" className="text-[28px] leading-tight tracking-tight sm:text-[32px]">
+    <section aria-labelledby="inbox-title" className="mx-auto max-w-3xl">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h1 id="inbox-title" className="text-[34px] leading-tight sm:text-[40px]">
           Messages
-        </h2>
+        </h1>
         <Button variant="ghost" onClick={messages.reload} loading={messages.loading && Boolean(messages.data)}>
           Refresh
         </Button>
