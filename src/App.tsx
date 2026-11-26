@@ -12,10 +12,7 @@ import { BarberPage } from './pages/BarberPage'
 import { NewPasswordPage } from './pages/NewPasswordPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PrivacyPage } from './pages/PrivacyPage'
-import { ContactInbox } from './pages/shop/ContactInbox'
-import { DashboardPage } from './pages/shop/DashboardPage'
-import { RequestsPage } from './pages/shop/RequestsPage'
-import { ShopHome, ShopLayout } from './pages/shop/ShopLayout'
+import { ShopMovedPage } from './pages/ShopMovedPage'
 import { WelcomePage } from './pages/WelcomePage'
 
 export default function App() {
@@ -38,13 +35,9 @@ export default function App() {
               <Route path="profile" element={<ProfilePage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
+            {/* the shop screens are a separate app now; old links land here */}
+            <Route path="shop/*" element={<ShopMovedPage />} />
             <Route path="*" element={<NotFoundPage />} />
-          </Route>
-          {/* staff only: ShopLayout checks the role, and the database checks again */}
-          <Route path="shop" element={<ShopLayout />}>
-            <Route index element={<ShopHome owner={<DashboardPage />} />} />
-            <Route path="requests" element={<RequestsPage />} />
-            <Route path="messages" element={<ContactInbox />} />
           </Route>
         </Routes>
       </BrowserRouter>

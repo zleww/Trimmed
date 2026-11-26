@@ -1,7 +1,6 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter/wght.css';
 @import '@fontsource-variable/fraunces/opsz.css';
-@import '@fontsource-variable/outfit/wght.css';
 @import '@fontsource-variable/fraunces/opsz-italic.css';
 
 /*
@@ -219,18 +218,4 @@ h2 {
 /* the mobile menu blocks the page behind it */
 html.menu-open {
   overflow: hidden;
-}
-
-/* ---------- shop app ---------- */
-
-/* the shop uses one plain geometric sans, no serif: it's a work tool */
-.shop-app,
-.shop-app h1,
-.shop-app h2 {
-  font-family: 'Outfit Variable', var(--font-sans);
-  letter-spacing: 0;
-}
-.shop-app h1,
-.shop-app h2 {
-  font-weight: 500;
 }

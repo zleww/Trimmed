@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../../lib/auth'
+import { STAFF_URL } from '../../lib/staffUrl'
 import { gsap, MOTION, ScrollTrigger, useGSAP } from '../../lib/gsap'
 import { scrollToSection, useLenis } from '../../lib/smooth'
 import { Menu, X } from '../icons'
@@ -112,10 +113,10 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-1.5">
-          {(staffRole === 'owner' || staffRole === 'desk') && (
-            <NavLink to="/shop" className={({ isActive }) => buttonClass(isActive ? 'secondary' : 'ghost', 'min-h-10 px-4 text-[14px] max-sm:hidden')}>
-              Shop
-            </NavLink>
+          {(staffRole === 'owner' || staffRole === 'desk') && STAFF_URL && (
+            <a href={STAFF_URL} className={buttonClass('ghost', 'min-h-10 px-4 text-[14px] max-sm:hidden')}>
+              Staff app
+            </a>
           )}
           {/* Book now on every page but the booking page itself. Amber once the hero's own button has scrolled away,
               so the screen never shows two amber buttons at once. */}
