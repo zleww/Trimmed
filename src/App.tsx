@@ -1,10 +1,9 @@
-import { BrowserRouter, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { SiteLayout } from './components/SiteLayout'
 import { AuthProvider } from './lib/auth'
 import { AccountLayout } from './pages/account/AccountLayout'
 import { BookingsPage } from './pages/account/BookingsPage'
 import { ProfilePage } from './pages/account/ProfilePage'
-import { SettingsPage } from './pages/account/SettingsPage'
 import { AuthPage } from './pages/AuthPage'
 import { BookPage } from './pages/BookPage'
 import { HomePage } from './pages/HomePage'
@@ -33,7 +32,8 @@ export default function App() {
             <Route path="account" element={<AccountLayout />}>
               <Route index element={<BookingsPage />} />
               <Route path="profile" element={<ProfilePage />} />
-              <Route path="settings" element={<SettingsPage />} />
+              {/* settings now live on the profile page */}
+              <Route path="settings" element={<Navigate to="/account/profile" replace />} />
             </Route>
             {/* the shop screens are a separate app now; old links land here */}
             <Route path="shop/*" element={<ShopMovedPage />} />

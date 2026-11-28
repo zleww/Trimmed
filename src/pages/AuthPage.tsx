@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Consent } from '../components/Consent'
+import { Calendar, Camera, Move, Star } from '../components/icons'
 import { Button, Field, Glass, Notice, PasswordField } from '../components/ui'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -29,25 +30,63 @@ export function AuthPage({ mode }: { mode: 'signin' | 'signup' }) {
   const otherLink = `/${other}${params.get('next') ? `?next=${encodeURIComponent(next)}` : ''}`
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12 sm:py-20">
-      <div className="rise">
-        <h1 className="font-display text-[34px] leading-tight tracking-tight">{mode === 'signin' ? 'Welcome back' : 'Create your account'}</h1>
-        <p className="mt-2 text-[16px] text-ink-2">
-          {mode === 'signin' ? 'Sign in to book and manage your bookings.' : 'So you can book, and cancel or move a booking any time.'}
+    <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 sm:px-6 sm:py-10 lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:py-14">
+      {/* the shop, so the page isn't just a form: photo + what an account gives you */}
+      <aside className="rise relative min-h-56 overflow-hidden rounded-3xl lg:min-h-[640px]">
+        <img src="/images/client-chair.webp" alt="" className="absolute inset-0 size-full object-cover" />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/10" />
+        <div className="relative flex h-full flex-col justify-end p-6 text-white sm:p-8">
+          <p className="text-[12px] font-semibold tracking-[0.2em] text-accent-ink uppercase">{mode === 'signin' ? 'Welcome back' : 'Join Trimmed'}</p>
+          <p className="mt-2 max-w-sm font-display text-[30px] leading-tight sm:text-[38px]">
+            {mode === 'signin' ? 'Your chair is waiting.' : 'Book your barber in a few taps.'}
+          </p>
+          <ul className="mt-5 hidden space-y-2.5 text-[15px] text-white/85 sm:block">
+            {PERKS.map(([Icon, text]) => (
+              <li key={text} className="flex items-center gap-3">
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white/15 backdrop-blur">
+                  <Icon size={16} />
+                </span>
+                {text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </aside>
+
+      <div className="flex flex-col justify-center lg:py-6">
+        <div className="rise [animation-delay:60ms]">
+          <h1 className="font-display text-[34px] leading-tight tracking-tight">{mode === 'signin' ? 'Sign in' : 'Create your account'}</h1>
+          <p className="mt-2 text-[16px] text-ink-2">
+            {mode === 'signin' ? 'Use your email or username.' : 'So you can book, and cancel or move a booking any time.'}
+          </p>
+        </div>
+
+        <Glass className="rise mt-6 p-6 sm:p-8 [animation-delay:120ms]">{mode === 'signin' ? <SignInForm /> : <SignUpForm />}</Glass>
+
+        <p className="mt-6 text-center text-[15px] text-ink-2">
+          {mode === 'signin' ? 'New here? ' : 'Already have an account? '}
+          <Link to={otherLink} className="font-medium text-ink underline-offset-4 hover:underline">
+            {mode === 'signin' ? 'Create an account' : 'Sign in'}
+          </Link>
+        </p>
+        <p className="mt-3 text-center text-[13px] text-ink-3">
+          Just looking?{' '}
+          <Link to="/" className="underline-offset-4 hover:underline">
+            Browse services and prices
+          </Link>
         </p>
       </div>
-
-      <Glass className="rise mt-8 p-6 sm:p-8 [animation-delay:80ms]">{mode === 'signin' ? <SignInForm /> : <SignUpForm />}</Glass>
-
-      <p className="mt-6 text-center text-[15px] text-ink-2">
-        {mode === 'signin' ? 'New here? ' : 'Already have an account? '}
-        <Link to={otherLink} className="font-medium text-ink underline-offset-4 hover:underline">
-          {mode === 'signin' ? 'Create an account' : 'Sign in'}
-        </Link>
-      </p>
     </div>
   )
 }
+
+// what an account gives you, on the photo panel
+const PERKS: [typeof Calendar, string][] = [
+  [Calendar, 'Pick your barber, day and time'],
+  [Move, 'Move or cancel from your phone'],
+  [Camera, 'Send inspo photos to your barber'],
+  [Star, 'Rate your cut after the visit'],
+]
 
 function SignInForm() {
   const { signIn } = useAuth()

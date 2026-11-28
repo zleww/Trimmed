@@ -1,5 +1,5 @@
 import { manilaDateOf, manilaToday, manilaWallClock, addDays } from './dates'
-import type { Api, Barber, BarberReviews, Booking, Branch, BookingRequest, BookingRules, BranchReviews, ContactMessage, Inspo, OpeningHours, OwnerDashboard, Profile, Review, Service, Session, StaffRole } from './types'
+import type { Api, Barber, BarberReviews, Booking, Branch, BookingRequest, BookingRules, BranchReviews, ContactMessage, Inspo, OpeningHours, OwnerDashboard, Profile, Review, Service, Session, StaffRole, ShopProduct } from './types'
 
 // Sample data for working on the screens without a database.
 // Development only: api.ts never loads this file in a production build.
@@ -196,6 +196,10 @@ export const demoApi: Api = {
   async listServices() {
     await wait()
     return services
+  },
+  async listShopProducts() {
+    await wait(150)
+    return SAMPLE_PRODUCTS
   },
   async listBranches() {
     await wait(150)
@@ -620,3 +624,11 @@ function sampleDashboard(days: number): OwnerDashboard {
     })),
   }
 }
+
+// made-up products so the Products section has something to show
+const SAMPLE_PRODUCTS: ShopProduct[] = [
+  { id: 'p1', name: 'Matte Clay (sample)', category: 'Styling', size: '100 g', description: 'Strong hold, no shine.', price_centavos: 45000, photo_url: null, stock_status: 'in_stock' },
+  { id: 'p2', name: 'Classic Pomade (sample)', category: 'Styling', size: '100 g', description: 'Medium hold, light shine.', price_centavos: 38000, photo_url: null, stock_status: 'low' },
+  { id: 'p3', name: 'Hair Tonic (sample)', category: 'Hair care', size: '250 ml', description: null, price_centavos: 38000, photo_url: null, stock_status: 'in_stock' },
+  { id: 'p4', name: 'Beard Oil (sample)', category: 'Beard care', size: '30 ml', description: 'Softens and calms the itch.', price_centavos: 48000, photo_url: null, stock_status: 'out' },
+]

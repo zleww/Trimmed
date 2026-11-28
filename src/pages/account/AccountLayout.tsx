@@ -1,13 +1,18 @@
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router'
-import { Calendar, Settings, User } from '../../components/icons'
+import { Calendar, User } from '../../components/icons'
 import { Avatar, Skeleton } from '../../components/ui'
 import { useAuth } from '../../lib/auth'
 
 const tabs = [
   { to: '/account', label: 'Bookings', Icon: Calendar, end: true },
   { to: '/account/profile', label: 'Profile', Icon: User, end: false },
-  { to: '/account/settings', label: 'Settings', Icon: Settings, end: false },
 ]
+
+// "Good morning" by the Manila clock
+function greeting(): string {
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Asia/Manila' }).format(new Date()))
+  return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+}
 
 // Gate for the account pages: signed in, and the profile step done.
 export function AccountLayout() {
@@ -30,8 +35,10 @@ export function AccountLayout() {
       <div className="flex items-center gap-4">
         <Avatar name={profile.full_name} url={profile.avatar_url} size={56} />
         <div className="min-w-0">
-          <p className="text-[14px] text-ink-2">Signed in as</p>
-          <h1 className="truncate text-[24px] font-semibold tracking-tight">{profile.full_name}</h1>
+          <h1 className="truncate font-display text-[26px] leading-tight">
+            {greeting()}, {profile.full_name.split(' ')[0]}
+          </h1>
+          <p className="text-[14px] text-ink-2">Ready for a fresh cut?</p>
         </div>
       </div>
 

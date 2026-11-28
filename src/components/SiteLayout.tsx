@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router'
 import { isDemo } from '../lib/api'
 import { SmoothScroll } from '../lib/smooth'
 import { ScrollToTop } from './ScrollToTop'
+import { TabBar, useTabBar } from './TabBar'
 import { Footer } from './sections/Footer'
 import { Navbar } from './sections/Navbar'
 
@@ -12,6 +13,7 @@ export function SiteLayout() {
   const { pathname } = useLocation()
   const onHome = pathname === '/'
   const onBooking = pathname.startsWith('/book')
+  const tabBar = useTabBar()
 
   return (
     <SmoothScroll enabled={onHome}>
@@ -32,7 +34,8 @@ export function SiteLayout() {
           <Outlet />
         </main>
 
-        <Footer roomForBar={onBooking} />
+        <Footer roomForBar={onBooking || tabBar} />
+        {tabBar && <TabBar />}
       </div>
     </SmoothScroll>
   )

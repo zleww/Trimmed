@@ -156,6 +156,8 @@ export type Api = {
   // public
   listServices(): Promise<Service[]>
   listBranches(): Promise<Branch[]>
+  /** what the shop sells at the desk, with a stock status (never the count) */
+  listShopProducts(): Promise<ShopProduct[]>
   listBarbers(): Promise<Barber[]>
   openingHours(): Promise<OpeningHours[]>
   bookingRules(): Promise<BookingRules>
@@ -241,4 +243,16 @@ export interface OwnerDashboard {
   barbers: { name: string; services: number; revenue_centavos: number }[]
   services: { name: string; count: number }[]
   recent: { id: string; sold_at: string; total_centavos: number; items: string | null; barber: string | null; paid_by: string | null }[]
+}
+
+/** A product as customers see it: buy at the shop, stock as a status only. */
+export type ShopProduct = {
+  id: string
+  name: string
+  category: string
+  size: string | null
+  description: string | null
+  price_centavos: number
+  photo_url: string | null
+  stock_status: 'in_stock' | 'low' | 'out'
 }

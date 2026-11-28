@@ -1,5 +1,5 @@
 import type { AuthError, PostgrestError, SupabaseClient } from '@supabase/supabase-js'
-import type { Api, Barber, BarberReviews, Branch, BranchReviews, Booking, BookingRequest, ContactMessage, Inspo, OwnerDashboard, Profile, Rating, Session, SignupDetails, StaffRole } from './types'
+import type { Api, Barber, BarberReviews, Branch, BranchReviews, Booking, BookingRequest, ContactMessage, Inspo, OwnerDashboard, Profile, Rating, Session, SignupDetails, StaffRole, ShopProduct } from './types'
 
 // Turns database and sign-in errors into plain sentences.
 // Our own database functions already raise plain messages (code P0001), so
@@ -94,6 +94,14 @@ export function createSupabaseApi(db: SupabaseClient): Api {
     async listBranches() {
       const rows = check(await db.from('branches').select('id, name, address, phone, description').eq('active', true).order('sort').order('name'))
       return (rows ?? []) as Branch[]
+    },
+
+    async listShopProducts() {
+      const rows = check(await db.rpc('public_products')) as (Omit<ShopProduct, 'photo_url'> & { photo_path: string | null })[]
+      return rows.map(({ photo_path, ...product }) => ({
+        ...product,
+        photo_url: photo_path ? db.storage.from('product-photos').getPublicUrl(photo_path).data.publicUrl : null,
+      }))
     },
 
     async listBarbers() {

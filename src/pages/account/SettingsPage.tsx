@@ -8,7 +8,7 @@ import { errorMessage } from '../../lib/format'
 import type { Settings } from '../../lib/types'
 import { useLoad } from '../../lib/useLoad'
 
-// Every change saves right away, so there is no Save button to forget.
+// Preferences and account, shown under the profile. Every change saves right away, so there is no Save button to forget.
 export function SettingsPage() {
   const { session, profile, setProfile, signOut } = useAuth()
   const navigate = useNavigate()
@@ -56,10 +56,10 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
 
-      <Section title="Appearance">
+      <Section title="Preferences">
         <Row label="Theme" description="System follows your phone's light or dark mode.">
           <Segmented
             label="Theme"
@@ -83,9 +83,6 @@ export function SettingsPage() {
             ]}
           />
         </Row>
-      </Section>
-
-      <Section title="Booking">
         <Row label="Favourite barber" description="Picked for you when you start a booking. You can still change it.">
           <select
             value={settings.preferred_barber ?? ''}
@@ -114,9 +111,6 @@ export function SettingsPage() {
                 ))}
           </select>
         </Row>
-      </Section>
-
-      <Section title="Messages">
         <div className="p-6">
           <Toggle
             label="News and promos"
@@ -133,7 +127,7 @@ export function SettingsPage() {
             Change password
           </ButtonLink>
         </Row>
-        <Row label="Sign out" description="On this device.">
+        <Row label="Sign out" description="On this device only.">
           <Button variant="secondary" onClick={() => signOut().then(() => navigate('/', { replace: true }))}>
             <LogOut size={18} />
             Sign out

@@ -100,9 +100,11 @@ describe('stock', () => {
     expect(moves.map((m) => `${m.reason}:${m.change}`)).toEqual(['sale:-2', 'void:2'])
   })
 
-  test('stock in and count adjustments are owner only', async () => {
-    await expect(as(db, shop.desk, () => db.query('select public.stock_in($1, 10)', [shop.pomade]))).rejects.toThrow(/Not allowed/)
-    await as(db, shop.owner, () => db.query('select public.stock_in($1, 10)', [shop.pomade]))
+  test('owner and desk receive stock; only the owner fixes a count', async () => {
+    await expect(as(db, shop.barberA, () => db.query('select public.stock_in($1, 10)', [shop.pomade]))).rejects.toThrow(/Not allowed/)
+    await as(db, shop.desk, () => db.query('select public.stock_in($1, 4)', [shop.pomade]))
+    await as(db, shop.owner, () => db.query('select public.stock_in($1, 6)', [shop.pomade]))
+    await expect(as(db, shop.desk, () => db.query("select public.adjust_stock($1, 14, 'One broken jar')", [shop.pomade]))).rejects.toThrow(/Not allowed/)
     await as(db, shop.owner, () => db.query("select public.adjust_stock($1, 14, 'One broken jar')", [shop.pomade]))
     expect(await value(db, 'select stock_qty as r from public.products where id = $1', [shop.pomade])).toBe(14)
   })
